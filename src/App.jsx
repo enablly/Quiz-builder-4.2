@@ -634,6 +634,8 @@ export default function App() {
 
   const [showExportModal, setShowExportModal] = useState(false);
   const [showPublishModal, setShowPublishModal] = useState(false);
+  const [showLiveUrlModal, setShowLiveUrlModal] = useState(false);
+  const [liveBuilderUrl, setLiveBuilderUrl] = useState(localStorage.getItem('qb_live_builder_url') || '');
   const [isPublishing, setIsPublishing] = useState(false);
   const [publishStatus, setPublishStatus] = useState(null);
   const [showTokenSecret, setShowTokenSecret] = useState(false);
@@ -1835,31 +1837,97 @@ export default function App() {
           <div className="builder-header" style={{ flexDirection: 'column', alignItems: 'stretch', gap: '12px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <h2 style={{ margin: 0 }}><Settings size={20} /> {config.content?.builderTitle || 'Quiz Builder'}</h2>
-              <div style={{display:'flex', gap:8, alignItems:'center'}}>
-                <button 
-                  onClick={() => {
-                    setShowPublishModal(true);
-                    handlePublishToGitHub();
-                  }} 
-                  style={{
-                    background: '#059669', 
-                    color: 'white', 
-                    border: 'none', 
-                    padding: '6px 12px', 
-                    borderRadius: '6px', 
-                    fontSize: '12px', 
-                    fontWeight: '600', 
-                    display: 'inline-flex', 
-                    alignItems: 'center', 
-                    gap: '5px', 
-                    cursor: 'pointer',
-                    boxShadow: '0 1px 2px rgba(0,0,0,0.08)'
-                  }} 
-                  title="1-Click Publish live quiz to GitHub Pages"
-                >
-                  <Globe size={14}/> Publish
-                </button>
-                <button className="builder-export-btn" onClick={exportGitHubFiles} style={{padding: '6px 10px', fontSize: 12}}><Download size={14}/> Export</button>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'center' }}>
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                  {/* Publish Quiz button */}
+                  <button 
+                    onClick={() => {
+                      setShowPublishModal(true);
+                      handlePublishToGitHub();
+                    }} 
+                    style={{
+                      background: '#059669', 
+                      color: 'white', 
+                      border: 'none', 
+                      padding: '6px 12px', 
+                      borderRadius: '6px', 
+                      fontSize: '12px', 
+                      fontWeight: '600', 
+                      display: 'inline-flex', 
+                      alignItems: 'center', 
+                      gap: '5px', 
+                      cursor: 'pointer',
+                      boxShadow: '0 1px 2px rgba(0,0,0,0.08)'
+                    }} 
+                    title="1-Click Publish live quiz to GitHub Pages"
+                  >
+                    <Globe size={14}/> Publish Quiz
+                  </button>
+
+                  {/* Live Builder button */}
+                  <button 
+                    onClick={() => {
+                      if (liveBuilderUrl) {
+                        window.open(liveBuilderUrl, '_blank');
+                      } else {
+                        setShowLiveUrlModal(true);
+                      }
+                    }} 
+                    style={{
+                      background: '#2563eb', 
+                      color: 'white', 
+                      border: 'none', 
+                      padding: '6px 12px', 
+                      borderRadius: '6px', 
+                      fontSize: '12px', 
+                      fontWeight: '600', 
+                      display: 'inline-flex', 
+                      alignItems: 'center', 
+                      gap: '5px', 
+                      cursor: 'pointer',
+                      boxShadow: '0 1px 2px rgba(0,0,0,0.08)'
+                    }} 
+                    title="Open the live Gcloud Quiz Builder"
+                  >
+                    <ExternalLink size={14}/> Live Builder
+                  </button>
+                </div>
+                
+                <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', padding: '0 4px' }}>
+                  {/* Export Quiz Underlined text */}
+                  <button 
+                    onClick={exportGitHubFiles}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: '#4b5563',
+                      textDecoration: 'underline',
+                      fontSize: '11px',
+                      cursor: 'pointer',
+                      padding: '0',
+                      textAlign: 'left'
+                    }}
+                  >
+                    Export Quiz
+                  </button>
+
+                  {/* Edit Live Url Underlined text */}
+                  <button 
+                    onClick={() => setShowLiveUrlModal(true)}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: '#4b5563',
+                      textDecoration: 'underline',
+                      fontSize: '11px',
+                      cursor: 'pointer',
+                      padding: '0',
+                      textAlign: 'right'
+                    }}
+                  >
+                    Edit Live Url
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -5849,6 +5917,81 @@ export default function App() {
           )}
         </div>
       </div>
+      {/* LIVE BUILDER URL MODAL */}
+      {showLiveUrlModal && (
+        <div className="modal-overlay" onClick={() => setShowLiveUrlModal(false)}>
+          <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '450px' }}>
+            <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:16, borderBottom:'1px solid #E5E7EB', paddingBottom:12}}>
+              <h3 style={{margin:0, fontSize:18, fontWeight:600, display:'flex', alignItems:'center', gap:8, color:'#111827'}}>
+                <Globe size={20} color="#2563eb"/> Edit Live Builder URL
+              </h3>
+              <button onClick={() => setShowLiveUrlModal(false)} style={{background:'none', border:'none', fontSize:20, cursor:'pointer', color:'#6B7280'}}>✕</button>
+            </div>
+            
+            <p style={{fontSize:14, color:'#4B5563', marginTop:0, marginBottom:16, lineHeight:1.5}}>
+              Enter the Google Cloud (Gcloud) Run URL where you have published this Quiz Builder application.
+            </p>
+
+            <div style={{ marginBottom: '20px' }}>
+              <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#374151', marginBottom: '6px' }}>
+                Gcloud Builder URL
+              </label>
+              <input 
+                type="url" 
+                placeholder="https://quizduildersg-...run.app" 
+                value={liveBuilderUrl} 
+                onChange={e => setLiveBuilderUrl(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '10px 12px',
+                  border: '1px solid #D1D5DB',
+                  borderRadius: '6px',
+                  fontSize: '14px',
+                  outline: 'none',
+                  boxSizing: 'border-box'
+                }}
+              />
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+              <button 
+                onClick={() => setShowLiveUrlModal(false)} 
+                style={{
+                  background: 'none',
+                  border: '1px solid #D1D5DB',
+                  padding: '8px 16px',
+                  borderRadius: '6px',
+                  fontSize: '13px',
+                  fontWeight: '600',
+                  color: '#4B5563',
+                  cursor: 'pointer'
+                }}
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={() => {
+                  localStorage.setItem('qb_live_builder_url', liveBuilderUrl.trim());
+                  setShowLiveUrlModal(false);
+                }} 
+                style={{
+                  background: '#2563eb',
+                  border: 'none',
+                  padding: '8px 16px',
+                  borderRadius: '6px',
+                  fontSize: '13px',
+                  fontWeight: '600',
+                  color: 'white',
+                  cursor: 'pointer'
+                }}
+              >
+                Save URL
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* EXPORT MODAL */}
       {showExportModal && (
         <div className="modal-overlay" onClick={() => setShowExportModal(false)}>
