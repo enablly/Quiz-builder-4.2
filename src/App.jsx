@@ -4,6 +4,8 @@ import JSZip from 'jszip';
 import RichTextEditor from './RichTextEditor';
 import { generateStandaloneHtml, generateReadme, generateLeadPayloadSchema } from './generateStandaloneQuiz';
 import { STEELCASE_TEMPLATES } from './steelcaseTemplates';
+import { doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore';
+import { db } from './firebase';
 
 const DEFAULT_CONFIG = {
   activeTemplateId: 'steelcase-arc-ai',
@@ -485,58 +487,101 @@ export function isWorkEmail(email) {
 }
 
 export default function App() {
-  const [config, setConfig] = useState(() => {
-    const saved = localStorage.getItem('quizBuilderConfig');
-    if (!saved) return DEFAULT_CONFIG;
-    try {
-      const parsed = JSON.parse(saved);
-      return {
-        ...DEFAULT_CONFIG,
-        ...parsed,
-        buildVersion: parsed.buildVersion || '1.01',
-        leadCapture: {
-          ...DEFAULT_CONFIG.leadCapture,
-          ...(parsed.leadCapture || {}),
-          fields: {
-            ...DEFAULT_CONFIG.leadCapture.fields,
-            ...(parsed.leadCapture?.fields || {})
-          },
-          customQuestions: Array.isArray(parsed.leadCapture?.customQuestions)
-            ? parsed.leadCapture.customQuestions
-            : []
-        },
-        ctaConfig: {
-          ...DEFAULT_CONFIG.ctaConfig,
-          ...(parsed.ctaConfig || {})
-        },
-        aiPersona: {
-          ...DEFAULT_CONFIG.aiPersona,
-          ...(parsed.aiPersona || {})
-        },
-        reportSections: (Array.isArray(parsed.reportSections) && parsed.reportSections.length === 5)
-          ? parsed.reportSections
-          : DEFAULT_CONFIG.reportSections,
-        results: Array.isArray(parsed.results) && parsed.results.length > 0
-          ? parsed.results
-          : DEFAULT_CONFIG.results,
-        dangerZoneConfig: {
-          ...DEFAULT_CONFIG.dangerZoneConfig,
-          ...(parsed.dangerZoneConfig || {}),
-          masterPrompt: (parsed.dangerZoneConfig?.masterPrompt?.trim()) || DEFAULT_CONFIG.dangerZoneConfig.masterPrompt,
-          defaultRagBank: (parsed.dangerZoneConfig?.defaultRagBank?.trim()) || DEFAULT_CONFIG.dangerZoneConfig.defaultRagBank,
-          footnotesReferenceHtml: (parsed.dangerZoneConfig?.footnotesReferenceHtml?.trim()) || DEFAULT_CONFIG.dangerZoneConfig.footnotesReferenceHtml,
-          ragFiles: Array.isArray(parsed.dangerZoneConfig?.ragFiles) ? parsed.dangerZoneConfig.ragFiles : [],
-          ragLinks: Array.isArray(parsed.dangerZoneConfig?.ragLinks) ? parsed.dangerZoneConfig.ragLinks : []
+  const [config, setConfig] = useState(DEFAULT_CONFIG);
+  const [isConfigLoaded, setIsConfigLoaded] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  
+  useEffect(() => {
+    // Initial fetch from Firestore
+    const fetchInitialConfig = async () => {
+      try {
+        const docRef = doc(db, 'builder', 'config');
+        const docSnap = await getDoc(docRef);
+        
+        let parsed = null;
+        if (docSnap.exists()) {
+          parsed = docSnap.data();
+        } else {
+          // If no cloud data, try migrating local storage to cloud once
+          const savedLocal = localStorage.getItem('quizBuilderConfig');
+          if (savedLocal) {
+            parsed = JSON.parse(savedLocal);
+          }
         }
-      };
-    } catch {
-      return DEFAULT_CONFIG;
-    }
-  });
+        
+        if (parsed) {
+          setConfig({
+            ...DEFAULT_CONFIG,
+            ...parsed,
+            buildVersion: parsed.buildVersion || '1.01',
+            leadCapture: {
+              ...DEFAULT_CONFIG.leadCapture,
+              ...(parsed.leadCapture || {}),
+              fields: {
+                ...DEFAULT_CONFIG.leadCapture.fields,
+                ...(parsed.leadCapture?.fields || {})
+              },
+              customQuestions: Array.isArray(parsed.leadCapture?.customQuestions)
+                ? parsed.leadCapture.customQuestions
+                : []
+            },
+            ctaConfig: {
+              ...DEFAULT_CONFIG.ctaConfig,
+              ...(parsed.ctaConfig || {})
+            },
+            aiPersona: {
+              ...DEFAULT_CONFIG.aiPersona,
+              ...(parsed.aiPersona || {})
+            },
+            reportSections: (Array.isArray(parsed.reportSections) && parsed.reportSections.length === 5)
+              ? parsed.reportSections
+              : DEFAULT_CONFIG.reportSections,
+            results: Array.isArray(parsed.results) && parsed.results.length > 0
+              ? parsed.results
+              : DEFAULT_CONFIG.results,
+            dangerZoneConfig: {
+              ...DEFAULT_CONFIG.dangerZoneConfig,
+              ...(parsed.dangerZoneConfig || {}),
+              masterPrompt: (parsed.dangerZoneConfig?.masterPrompt?.trim()) || DEFAULT_CONFIG.dangerZoneConfig.masterPrompt,
+              defaultRagBank: (parsed.dangerZoneConfig?.defaultRagBank?.trim()) || DEFAULT_CONFIG.dangerZoneConfig.defaultRagBank,
+              footnotesReferenceHtml: (parsed.dangerZoneConfig?.footnotesReferenceHtml?.trim()) || DEFAULT_CONFIG.dangerZoneConfig.footnotesReferenceHtml,
+              ragFiles: Array.isArray(parsed.dangerZoneConfig?.ragFiles) ? parsed.dangerZoneConfig.ragFiles : [],
+              ragLinks: Array.isArray(parsed.dangerZoneConfig?.ragLinks) ? parsed.dangerZoneConfig.ragLinks : []
+            }
+          });
+        }
+      } catch (err) {
+        console.error("Failed to load config from Firestore", err);
+      } finally {
+        setIsConfigLoaded(true);
+      }
+    };
+    
+    fetchInitialConfig();
+  }, []);
 
   useEffect(() => {
-    localStorage.setItem('quizBuilderConfig', JSON.stringify(config));
-  }, [config]);
+    if (!isConfigLoaded) return;
+    
+    const saveToCloud = async () => {
+      setIsSaving(true);
+      try {
+        const docRef = doc(db, 'builder', 'config');
+        // Clean out any undefined values or invalid data before saving to firestore if needed
+        await setDoc(docRef, config);
+      } catch (err) {
+        console.error("Failed to save config to Firestore", err);
+      } finally {
+        setIsSaving(false);
+      }
+    };
+    
+    const timer = setTimeout(() => {
+      saveToCloud();
+    }, 1500); // 1.5 second debounce for cloud saving
+    
+    return () => clearTimeout(timer);
+  }, [config, isConfigLoaded]);
 
   const [availableModels, setAvailableModels] = useState([]);
   const [isScanningModels, setIsScanningModels] = useState(false);
