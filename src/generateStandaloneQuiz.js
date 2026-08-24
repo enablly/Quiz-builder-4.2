@@ -1023,15 +1023,24 @@ export function generateStandaloneHtml(rawConfig, backendUrl = '') {
                         let sec4 = "";
                         try {
                           const parsed = JSON.parse(text);
-                          sec2 = parsed.section2Html || parsed.section2 || "";
-                          sec4 = parsed.section4Html || parsed.section4 || "";
+                          sec2 = parsed.section2Html || parsed.section2 || parsed.Section2 || parsed.section_2 || "";
+                          sec4 = parsed.section4Html || parsed.section4 || parsed.Section4 || parsed.section_4 || "";
                         } catch (jErr) {
-                          if (text.includes("<h3>2.") || text.includes("<h3>4.")) {
+                          const jsonMatch = text.match(/\{[\s\S]*"section[24]Html"[\s\S]*\}/i) || text.match(/\{[\s\S]*\}/);
+                          if (jsonMatch) {
+                            try {
+                              const parsed = JSON.parse(jsonMatch[0]);
+                              sec2 = parsed.section2Html || parsed.section2 || parsed.Section2 || parsed.section_2 || "";
+                              sec4 = parsed.section4Html || parsed.section4 || parsed.Section4 || parsed.section_4 || "";
+                            } catch (subErr) {}
+                          }
+
+                          if (!sec2 && (text.includes("<h3>2.") || text.includes("<h3>4."))) {
                             const s2Match = text.match(/<h3>2\\.[^<]*<\\/h3>([\\s\\S]*?)(?=<h3>[345]\\.|$)/i);
                             const s4Match = text.match(/<h3>4\\.[^<]*<\\/h3>([\\s\\S]*?)(?=<h3>[5]\\.|$)/i);
                             sec2 = s2Match ? s2Match[1].trim() : "";
                             sec4 = s4Match ? s4Match[1].trim() : "";
-                          } else {
+                          } else if (!sec2) {
                             sec2 = "<p>" + text + "</p>";
                           }
                         }

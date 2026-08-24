@@ -298,15 +298,32 @@ IMPORTANT:
           thinkingLogs.push(`[${timestamp()}] [Gemini API] Querying ${modelName}...`);
           console.log(`[AI Diagnosis] Requesting generation with model: ${modelName}...`);
           
-          // Try standard generation directly for fast, high-reliability live AI analysis
-          const response = await runWithTimeout(
-            ai.models.generateContent({
-              model: modelName,
-              contents: promptStr,
-            }),
-            25000,
-            `Model ${modelName} timed out after 25s`
-          );
+          // Try standard generation with JSON schema enforcement directly for fast, high-reliability live AI analysis
+          let response: any = null;
+          try {
+            response = await runWithTimeout(
+              ai.models.generateContent({
+                model: modelName,
+                contents: promptStr,
+                config: {
+                  responseMimeType: "application/json",
+                  temperature: 0.7,
+                }
+              }),
+              25000,
+              `Model ${modelName} timed out after 25s`
+            );
+          } catch (genErr: any) {
+            // Fallback without config if model doesn't support responseMimeType
+            response = await runWithTimeout(
+              ai.models.generateContent({
+                model: modelName,
+                contents: promptStr,
+              }),
+              25000,
+              `Model ${modelName} timed out after 25s`
+            );
+          }
 
           if (response && response.text) {
             let aiText = response.text.trim();
@@ -320,11 +337,23 @@ IMPORTANT:
 
             try {
               const parsed = JSON.parse(aiText);
-              sec2Html = parsed.section2Html || parsed.section2 || "";
-              sec4Html = parsed.section4Html || parsed.section4 || "";
+              sec2Html = parsed.section2Html || parsed.section2 || parsed.Section2 || parsed.section_2 || "";
+              sec4Html = parsed.section4Html || parsed.section4 || parsed.Section4 || parsed.section_4 || "";
             } catch (pErr) {
+              // If not purely valid JSON, attempt to locate the JSON object with regex
+              const jsonMatch = aiText.match(/\{[\s\S]*"section[24]Html"[\s\S]*\}/i) || aiText.match(/\{[\s\S]*\}/);
+              if (jsonMatch) {
+                try {
+                  const parsed = JSON.parse(jsonMatch[0]);
+                  sec2Html = parsed.section2Html || parsed.section2 || parsed.Section2 || parsed.section_2 || "";
+                  sec4Html = parsed.section4Html || parsed.section4 || parsed.Section4 || parsed.section_4 || "";
+                } catch (subErr) {
+                  // Continue to HTML / pattern matching
+                }
+              }
+
               // If not valid JSON, extract by HTML tags or fallback
-              if (aiText.includes("<h3>2.") || aiText.includes("<h3>4.")) {
+              if (!sec2Html && (aiText.includes("<h3>2.") || aiText.includes("<h3>4."))) {
                 const s2Match = aiText.match(/<h3>2\.[^<]*<\/h3>([\s\S]*?)(?=<h3>[345]\.|$)/i);
                 const s4Match = aiText.match(/<h3>4\.[^<]*<\/h3>([\s\S]*?)(?=<h3>[5]\.|$)/i);
                 sec2Html = s2Match ? s2Match[1].trim() : "";

@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { Settings, Plus, Trash2, CheckCircle2, BarChart2, Mail, Lock, ArrowRight, ArrowLeft, ArrowUp, ArrowDown, Download, Code, Phone, RefreshCw, Eye, FileText, Upload, Image, AlertCircle, Globe, ExternalLink, Send, Key, Check, Bold, Italic, Underline, Strikethrough, List, ListOrdered, Quote, Highlighter, Heading4, User, Sparkles, Activity } from 'lucide-react';
+import { Settings, Plus, Trash2, CheckCircle2, BarChart2, Mail, Lock, ArrowRight, ArrowLeft, ArrowUp, ArrowDown, Download, Code, Phone, RefreshCw, Eye, FileText, Upload, Image, AlertCircle, Globe, ExternalLink, Send, Key, Check, Copy, Bold, Italic, Underline, Strikethrough, List, ListOrdered, Quote, Highlighter, Heading4, User, Sparkles, Activity } from 'lucide-react';
 import JSZip from 'jszip';
 import RichTextEditor from './RichTextEditor';
 import { generateStandaloneHtml, generateReadme, generateLeadPayloadSchema } from './generateStandaloneQuiz';
@@ -635,6 +635,8 @@ export default function App() {
   const [showExportModal, setShowExportModal] = useState(false);
   const [showPublishModal, setShowPublishModal] = useState(false);
   const [showLiveUrlModal, setShowLiveUrlModal] = useState(false);
+  const [showViewQuizModal, setShowViewQuizModal] = useState(false);
+  const [copiedQuizUrl, setCopiedQuizUrl] = useState(false);
   const [liveBuilderUrl, setLiveBuilderUrl] = useState(localStorage.getItem('qb_live_builder_url') || '');
   const [isPublishing, setIsPublishing] = useState(false);
   const [publishStatus, setPublishStatus] = useState(null);
@@ -704,7 +706,9 @@ export default function App() {
 
     try {
       // 1. Generate standalone pure Hosted Quiz (HQ) HTML - zero builder UI, zero points
-      const hqHtml = generateStandaloneHtml(updatedConfig, window.location.origin);
+      // Prefer configured Gcloud live builder URL if entered, else current origin
+      const resolvedBackendUrl = (liveBuilderUrl || localStorage.getItem('qb_live_builder_url') || window.location.origin).replace(/\/+$/, '');
+      const hqHtml = generateStandaloneHtml(updatedConfig, resolvedBackendUrl);
 
       // 2. Call backend proxy to commit and push directly to GitHub repository
       const response = await fetch('/api/publish-github', {
@@ -741,6 +745,9 @@ export default function App() {
       localStorage.setItem('qb_github_token', token.trim());
       localStorage.setItem('qb_github_repo', repo.trim());
       localStorage.setItem('qb_github_branch', (branch.trim() || 'main'));
+      if (data.pagesUrl) {
+        localStorage.setItem('qb_last_publish_url', data.pagesUrl);
+      }
 
       setConfig(prev => ({
         ...prev,
@@ -1753,9 +1760,13 @@ export default function App() {
     downloadFile('quiz-config.json', JSON.stringify(getSanitizedConfig(config), null, 2), 'application/json');
   };
 
+  const getEffectiveBackendUrl = () => {
+    return (liveBuilderUrl || localStorage.getItem('qb_live_builder_url') || window.location.origin).replace(/\/+$/, '');
+  };
+
   const exportStandaloneHtml = () => {
     try {
-      const htmlContent = generateStandaloneHtml(config, window.location.origin);
+      const htmlContent = generateStandaloneHtml(config, getEffectiveBackendUrl());
       downloadFile('index.html', htmlContent, 'text/html');
     } catch (err) {
       console.error('Failed to generate standalone HTML:', err);
@@ -1776,7 +1787,7 @@ export default function App() {
     try {
       const zip = new JSZip();
       const sanitizedConfig = getSanitizedConfig(config);
-      zip.file('index.html', generateStandaloneHtml(config, window.location.origin));
+      zip.file('index.html', generateStandaloneHtml(config, getEffectiveBackendUrl()));
       zip.file('quiz-config.json', JSON.stringify(sanitizedConfig, null, 2));
       zip.file('README.md', generateReadme(sanitizedConfig));
       zip.file('lead-payload-schema.json', generateLeadPayloadSchema());
@@ -1893,23 +1904,43 @@ export default function App() {
                   </button>
                 </div>
                 
-                <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', padding: '0 4px' }}>
-                  {/* Export Quiz Underlined text */}
-                  <button 
-                    onClick={exportGitHubFiles}
-                    style={{
-                      background: 'none',
-                      border: 'none',
-                      color: '#4b5563',
-                      textDecoration: 'underline',
-                      fontSize: '11px',
-                      cursor: 'pointer',
-                      padding: '0',
-                      textAlign: 'left'
-                    }}
-                  >
-                    Export Quiz
-                  </button>
+                <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', padding: '0 2px', alignItems: 'center' }}>
+                  {/* Export Quiz & View Underlined texts */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <button 
+                      onClick={exportGitHubFiles}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: '#4b5563',
+                        textDecoration: 'underline',
+                        fontSize: '10px',
+                        cursor: 'pointer',
+                        padding: '0',
+                        lineHeight: '1.2'
+                      }}
+                      title="Download standalone HTML or ZIP package"
+                    >
+                      Export Quiz
+                    </button>
+                    <span style={{ color: '#9ca3af', fontSize: '9px' }}>•</span>
+                    <button 
+                      onClick={() => setShowViewQuizModal(true)}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: '#4b5563',
+                        textDecoration: 'underline',
+                        fontSize: '10px',
+                        cursor: 'pointer',
+                        padding: '0',
+                        lineHeight: '1.2'
+                      }}
+                      title="View live published quiz link"
+                    >
+                      View
+                    </button>
+                  </div>
 
                   {/* Edit Live Url Underlined text */}
                   <button 
@@ -1919,11 +1950,13 @@ export default function App() {
                       border: 'none',
                       color: '#4b5563',
                       textDecoration: 'underline',
-                      fontSize: '11px',
+                      fontSize: '10px',
                       cursor: 'pointer',
                       padding: '0',
-                      textAlign: 'right'
+                      textAlign: 'right',
+                      lineHeight: '1.2'
                     }}
+                    title="Configure the Gcloud Live Builder URL"
                   >
                     Edit Live Url
                   </button>
@@ -5991,6 +6024,172 @@ export default function App() {
           </div>
         </div>
       )}
+
+      {/* VIEW PUBLISHED QUIZ MODAL */}
+      {showViewQuizModal && (() => {
+        const publishedUrl = config.integration?.lastPublishUrl || localStorage.getItem('qb_last_publish_url') || publishStatus?.pagesUrl || (config.integration?.githubRepo ? `https://${config.integration.githubRepo.split('/')[0]}.github.io/${config.integration.githubRepo.split('/')[1] || ''}/` : '');
+        
+        return (
+          <div className="modal-overlay" onClick={() => setShowViewQuizModal(false)}>
+            <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '480px' }}>
+              <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:16, borderBottom:'1px solid #E5E7EB', paddingBottom:12}}>
+                <h3 style={{margin:0, fontSize:18, fontWeight:600, display:'flex', alignItems:'center', gap:8, color:'#111827'}}>
+                  <Globe size={20} color="#059669"/> Published Quiz Link
+                </h3>
+                <button onClick={() => setShowViewQuizModal(false)} style={{background:'none', border:'none', fontSize:20, cursor:'pointer', color:'#6B7280'}}>✕</button>
+              </div>
+
+              {publishedUrl ? (
+                <div>
+                  <p style={{fontSize:14, color:'#4B5563', marginTop:0, marginBottom:14, lineHeight:1.5}}>
+                    Your standalone interactive quiz is published and accessible live for visitors at the URL below:
+                  </p>
+
+                  <div style={{ background: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: '8px', padding: '12px', marginBottom: '16px' }}>
+                    <div style={{ fontSize: '11px', fontWeight: '700', textTransform: 'uppercase', color: '#6B7280', marginBottom: '6px', letterSpacing: '0.05em' }}>
+                      Live Quiz URL
+                    </div>
+                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                      <input 
+                        type="text" 
+                        readOnly 
+                        value={publishedUrl} 
+                        style={{
+                          flex: 1,
+                          padding: '8px 10px',
+                          background: '#FFFFFF',
+                          border: '1px solid #D1D5DB',
+                          borderRadius: '6px',
+                          fontSize: '13px',
+                          color: '#111827',
+                          fontFamily: 'monospace'
+                        }}
+                      />
+                      <button 
+                        onClick={() => {
+                          navigator.clipboard.writeText(publishedUrl);
+                          setCopiedQuizUrl(true);
+                          setTimeout(() => setCopiedQuizUrl(false), 2000);
+                        }}
+                        style={{
+                          background: copiedQuizUrl ? '#059669' : '#F3F4F6',
+                          color: copiedQuizUrl ? '#FFFFFF' : '#374151',
+                          border: '1px solid #D1D5DB',
+                          padding: '8px 12px',
+                          borderRadius: '6px',
+                          fontSize: '12px',
+                          fontWeight: '600',
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          whiteSpace: 'nowrap'
+                        }}
+                      >
+                        {copiedQuizUrl ? <Check size={14} /> : <Copy size={14} />} {copiedQuizUrl ? 'Copied' : 'Copy'}
+                      </button>
+                    </div>
+
+                    {config.integration?.lastPublishedAt && (
+                      <div style={{ fontSize: '11px', color: '#6B7280', marginTop: '8px' }}>
+                        Last published: {new Date(config.integration.lastPublishedAt).toLocaleString()}
+                      </div>
+                    )}
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+                    <button 
+                      onClick={() => setShowViewQuizModal(false)} 
+                      style={{
+                        background: 'none',
+                        border: '1px solid #D1D5DB',
+                        padding: '8px 16px',
+                        borderRadius: '6px',
+                        fontSize: '13px',
+                        fontWeight: '600',
+                        color: '#4B5563',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      Close
+                    </button>
+                    <a 
+                      href={publishedUrl} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      style={{
+                        background: '#059669',
+                        border: 'none',
+                        padding: '8px 16px',
+                        borderRadius: '6px',
+                        fontSize: '13px',
+                        fontWeight: '600',
+                        color: 'white',
+                        cursor: 'pointer',
+                        textDecoration: 'none',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '6px'
+                      }}
+                    >
+                      <ExternalLink size={14}/> Open Live Quiz
+                    </a>
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <div style={{ background: '#FEF3C7', border: '1px solid #F59E0B', borderRadius: '8px', padding: '14px', marginBottom: '16px', color: '#92400E', fontSize: '13px', lineHeight: 1.5 }}>
+                    <strong>No published link found yet.</strong>
+                    <p style={{ margin: '6px 0 0 0' }}>
+                      Publish your standalone quiz to GitHub Pages using the green <strong>Publish Quiz</strong> button to automatically generate your live URL.
+                    </p>
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+                    <button 
+                      onClick={() => setShowViewQuizModal(false)} 
+                      style={{
+                        background: 'none',
+                        border: '1px solid #D1D5DB',
+                        padding: '8px 16px',
+                        borderRadius: '6px',
+                        fontSize: '13px',
+                        fontWeight: '600',
+                        color: '#4B5563',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      Close
+                    </button>
+                    <button 
+                      onClick={() => {
+                        setShowViewQuizModal(false);
+                        setShowPublishModal(true);
+                        handlePublishToGitHub();
+                      }}
+                      style={{
+                        background: '#059669',
+                        border: 'none',
+                        padding: '8px 16px',
+                        borderRadius: '6px',
+                        fontSize: '13px',
+                        fontWeight: '600',
+                        color: 'white',
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '6px'
+                      }}
+                    >
+                      <Globe size={14}/> Publish Quiz Now
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* EXPORT MODAL */}
       {showExportModal && (
