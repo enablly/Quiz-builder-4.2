@@ -490,7 +490,63 @@ export default function App() {
   const [config, setConfig] = useState(DEFAULT_CONFIG);
   const [isConfigLoaded, setIsConfigLoaded] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+
+  // Locking System State
+  const [currentUser, setCurrentUser] = useState(() => {
+    let name = localStorage.getItem('builderUserName');
+    if (!name) {
+      name = prompt("Please enter your name to collaborate:");
+      if (!name) name = "Anonymous User";
+      localStorage.setItem('builderUserName', name);
+    }
+    return name;
+  });
+  const [lockData, setLockData] = useState(null);
+  const isLockedByOther = lockData && lockData.lockedBy !== currentUser && lockData.expiresAt > Date.now();
   
+  // 1. Lock Listener Effect
+  useEffect(() => {
+    const unsub = onSnapshot(doc(db, 'builder', 'lock'), (docSnap) => {
+      if (docSnap.exists()) {
+        setLockData(docSnap.data());
+      }
+    });
+    return () => unsub();
+  }, []);
+
+  // 2. Heartbeat Effect (Pings every 30s if not locked by someone else)
+  useEffect(() => {
+    let intervalId;
+    const updateLock = async () => {
+      // Don't grab the lock if someone else has it actively
+      if (isLockedByOther) return; 
+      
+      try {
+        await setDoc(doc(db, 'builder', 'lock'), {
+          lockedBy: currentUser,
+          expiresAt: Date.now() + 120000 // 2 minutes from now
+        });
+      } catch (err) {
+        console.error("Failed to update lock heartbeat", err);
+      }
+    };
+
+    updateLock(); // initial ping
+    intervalId = setInterval(updateLock, 30000); // ping every 30s
+    
+    return () => clearInterval(intervalId);
+  }, [currentUser, isLockedByOther]);
+
+  // 3. Force Takeover Helper
+  const forceTakeover = async () => {
+    try {
+      await setDoc(doc(db, 'builder', 'lock'), {
+        lockedBy: currentUser,
+        expiresAt: Date.now() + 120000
+      });
+    } catch (err) {}
+  };
+
   useEffect(() => {
     // Initial fetch from Firestore
     const fetchInitialConfig = async () => {
@@ -597,7 +653,9 @@ export default function App() {
     };
     
     const timer = setTimeout(() => {
-      saveToCloud();
+      if (!isLockedByOther) {
+        saveToCloud();
+      }
     }, 1500); // 1.5 second debounce for cloud saving
     
     return () => clearTimeout(timer);

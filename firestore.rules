@@ -1,9 +1,9 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Allow public read and write access to the config document for now
+    // Allow public read and write access to the builder documents
     // as this is a collaborative builder tool without user authentication.
-    match /builder/config {
+    match /builder/{document=**} {
       allow read, write: if true;
     }
   }
