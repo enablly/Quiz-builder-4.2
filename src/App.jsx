@@ -567,8 +567,28 @@ export default function App() {
       setIsSaving(true);
       try {
         const docRef = doc(db, 'builder', 'config');
-        // Clean out any undefined values or invalid data before saving to firestore if needed
-        await setDoc(docRef, config);
+        let payload = { ...config };
+        
+        // Firestore 1MB limit protection
+        const payloadString = JSON.stringify(payload);
+        const payloadSize = new Blob([payloadString]).size;
+        
+        if (payloadSize > 1000000) {
+          console.warn("Payload > 1MB, dropping large images to prevent Firebase crash");
+          payload = JSON.parse(payloadString); // deep copy
+          if (payload.branding) payload.branding.logoUrl = "";
+          if (Array.isArray(payload.reportSections)) {
+            payload.reportSections = payload.reportSections.map(sec => {
+              const newSec = { ...sec, imageUrl: "" };
+              if (Array.isArray(newSec.extraBlocks)) {
+                newSec.extraBlocks = newSec.extraBlocks.map(b => ({ ...b, imageUrl: "" }));
+              }
+              return newSec;
+            });
+          }
+        }
+        
+        await setDoc(docRef, payload);
       } catch (err) {
         console.error("Failed to save config to Firestore", err);
       } finally {
@@ -836,76 +856,101 @@ export default function App() {
     }
   };
 
-  const handleLogoFileUpload = (e) => {
+
+  const compressImage = (file, maxWidth = 1000, quality = 0.8) => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = (event) => {
+        const img = new Image();
+        img.src = event.target.result;
+        img.onload = () => {
+          let width = img.width;
+          let height = img.height;
+          if (width > maxWidth) {
+            height = Math.round((height * maxWidth) / width);
+            width = maxWidth;
+          }
+          const canvas = document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, width, height);
+          resolve(canvas.toDataURL('image/jpeg', quality));
+        };
+        img.onerror = () => resolve(event.target.result);
+      };
+      reader.onerror = () => reject(new Error("Failed to read file"));
+    });
+  };
+
+  const handleLogoFileUpload = async (e) => {
     const file = e.target.files && e.target.files[0];
     if (file) {
-      if (file.size > 3 * 1024 * 1024) {
-        alert("File size is larger than 3MB. Please select a smaller logo image.");
+      if (file.size > 10 * 1024 * 1024) {
+        alert("File size is too large.");
         return;
       }
-      const reader = new FileReader();
-      reader.onload = (uploadEvent) => {
-        if (uploadEvent.target?.result) {
-          setConfig(prev => ({
-            ...prev,
-            branding: {
-              ...prev.branding,
-              logoUrl: uploadEvent.target.result
-            }
-          }));
-        }
-      };
-      reader.readAsDataURL(file);
+      try {
+        const compressedDataUrl = await compressImage(file, 800, 0.8);
+        setConfig(prev => ({
+          ...prev,
+          branding: {
+            ...prev.branding,
+            logoUrl: compressedDataUrl
+          }
+        }));
+      } catch (err) {
+        console.error(err);
+      }
     }
   };
 
-  const handleSectionImageUpload = (sectionIndex, e) => {
+  const handleSectionImageUpload = async (sectionIndex, e) => {
     const file = e.target.files && e.target.files[0];
     if (file) {
-      if (file.size > 3 * 1024 * 1024) {
-        alert("Image size exceeds 3MB limit. Please choose a smaller file.");
+      if (file.size > 10 * 1024 * 1024) {
+        alert("Image size exceeds 10MB limit. Please choose a smaller file.");
         return;
       }
-      const reader = new FileReader();
-      reader.onload = (ev) => {
-        if (ev.target?.result) {
-          setConfig(prev => {
-            const secs = Array.isArray(prev.reportSections) ? [...prev.reportSections] : [...DEFAULT_CONFIG.reportSections];
-            if (secs[sectionIndex]) {
-              secs[sectionIndex] = { ...secs[sectionIndex], imageUrl: ev.target.result };
-            }
-            return { ...prev, reportSections: secs };
-          });
-        }
-      };
-      reader.readAsDataURL(file);
+      try {
+        const compressedDataUrl = await compressImage(file, 1000, 0.8);
+        setConfig(prev => {
+          const secs = Array.isArray(prev.reportSections) ? [...prev.reportSections] : [...DEFAULT_CONFIG.reportSections];
+          if (secs[sectionIndex]) {
+            secs[sectionIndex] = { ...secs[sectionIndex], imageUrl: compressedDataUrl };
+          }
+          return { ...prev, reportSections: secs };
+        });
+      } catch (err) {
+        console.error(err);
+      }
     }
   };
 
-  const handleExtraBlockImageUpload = (sectionIndex, blockIndex, e) => {
+  const handleExtraBlockImageUpload = async (sectionIndex, blockIndex, e) => {
     const file = e.target.files && e.target.files[0];
     if (file) {
-      if (file.size > 3 * 1024 * 1024) {
-        alert("Image size exceeds 3MB limit. Please choose a smaller file.");
+      if (file.size > 10 * 1024 * 1024) {
+        alert("Image size exceeds 10MB limit. Please choose a smaller file.");
         return;
       }
-      const reader = new FileReader();
-      reader.onload = (ev) => {
-        if (ev.target?.result) {
-          setConfig(prev => {
-            const secs = Array.isArray(prev.reportSections) ? [...prev.reportSections] : [...DEFAULT_CONFIG.reportSections];
-            if (secs[sectionIndex]) {
-              const extraBlocks = Array.isArray(secs[sectionIndex].extraBlocks) ? [...secs[sectionIndex].extraBlocks] : [];
-              if (extraBlocks[blockIndex]) {
-                extraBlocks[blockIndex] = { ...extraBlocks[blockIndex], imageUrl: ev.target.result };
-                secs[sectionIndex] = { ...secs[sectionIndex], extraBlocks };
-              }
+      try {
+        const compressedDataUrl = await compressImage(file, 1000, 0.8);
+        setConfig(prev => {
+          const secs = Array.isArray(prev.reportSections) ? [...prev.reportSections] : [...DEFAULT_CONFIG.reportSections];
+          if (secs[sectionIndex]) {
+            const extraBlocks = Array.isArray(secs[sectionIndex].extraBlocks) ? [...secs[sectionIndex].extraBlocks] : [];
+            if (extraBlocks[blockIndex]) {
+              extraBlocks[blockIndex] = { ...extraBlocks[blockIndex], imageUrl: compressedDataUrl };
+              secs[sectionIndex] = { ...secs[sectionIndex], extraBlocks };
             }
-            return { ...prev, reportSections: secs };
-          });
-        }
-      };
-      reader.readAsDataURL(file);
+          }
+          return { ...prev, reportSections: secs };
+        });
+      } catch (err) {
+        console.error(err);
+      }
     }
   };
 
