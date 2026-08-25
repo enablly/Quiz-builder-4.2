@@ -5054,64 +5054,58 @@ export default function App() {
 
 
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                    {(config.integration.modelFallbacks || ['gemini-3.7-flash', 'gemini-3.6-flash', 'gemini-3.5-flash', 'gemini-3.5-flash-lite', 'gemini-pro-latest']).map((mName, idx, arr) => (
-                      <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#FFFFFF', padding: '8px 10px', borderRadius: '6px', border: '1px solid #D1D5DB', width: '100%', boxSizing: 'border-box' }}>
-                        <span style={{ fontSize: '11px', fontWeight: '700', color: idx === 0 ? '#1D4ED8' : '#374151', background: idx === 0 ? '#EFF6FF' : '#F3F4F6', padding: '4px 8px', borderRadius: '4px', minWidth: '85px', textAlign: 'center', whiteSpace: 'nowrap', flexShrink: 0 }}>
-                          {idx === 0 ? '#1 Primary' : `#${idx + 1} Fallback`}
-                        </span>
-                        
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <select
-                            value={availableModels.includes(mName) ? mName : 'custom'}
-                            onChange={(e) => {
-                              const newArr = [...arr];
-                              if (e.target.value !== 'custom') {
+                    {(config.integration.modelFallbacks || ['gemini-3.7-flash', 'gemini-3.6-flash', 'gemini-3.5-flash', 'gemini-3.5-flash-lite', 'gemini-pro-latest']).map((mName, idx, arr) => {
+                      const allOptions = Array.from(new Set([
+                        ...(availableModels.length > 0 ? availableModels : []),
+                        'gemini-3.7-flash',
+                        'gemini-3.6-flash',
+                        'gemini-3.5-flash',
+                        'gemini-3.5-flash-lite',
+                        'gemini-3.1-flash-lite',
+                        'gemini-flash-lite-latest',
+                        'gemini-3.1-pro-preview',
+                        'gemini-pro-latest',
+                        mName
+                      ])).filter(Boolean);
+
+                      return (
+                        <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#FFFFFF', padding: '8px 10px', borderRadius: '6px', border: '1px solid #D1D5DB', width: '100%', boxSizing: 'border-box' }}>
+                          <span style={{ fontSize: '11px', fontWeight: '700', color: idx === 0 ? '#1D4ED8' : '#374151', background: idx === 0 ? '#EFF6FF' : '#F3F4F6', padding: '4px 8px', borderRadius: '4px', minWidth: '85px', textAlign: 'center', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                            {idx === 0 ? '#1 Primary' : `#${idx + 1} Fallback`}
+                          </span>
+                          
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <select
+                              value={mName}
+                              onChange={(e) => {
+                                const newArr = [...arr];
                                 newArr[idx] = e.target.value;
                                 setConfig({ ...config, integration: { ...config.integration, modelFallbacks: newArr } });
-                              }
-                            }}
-                            style={{ width: '100%', padding: '6px 8px', fontSize: '12px', border: '1px solid #D1D5DB', borderRadius: '4px', background: '#FFFFFF', color: '#111827', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap', boxSizing: 'border-box' }}
-                          >
-                            {availableModels.length > 0 ? (
-                              availableModels.map(model => (
+                              }}
+                              style={{ width: '100%', padding: '6px 8px', fontSize: '12px', border: '1px solid #D1D5DB', borderRadius: '4px', background: '#FFFFFF', color: '#111827', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap', boxSizing: 'border-box' }}
+                            >
+                              {allOptions.map(model => (
                                 <option key={model} value={model}>{model}</option>
-                              ))
-                            ) : (
-                              <>
-                                <option value="gemini-3.7-flash">gemini-3.7-flash</option>
-                                <option value="gemini-3.6-flash">gemini-3.6-flash</option>
-                                <option value="gemini-3.5-flash">gemini-3.5-flash</option>
-                                <option value="gemini-3.5-flash-lite">gemini-3.5-flash-lite</option>
-                                <option value="gemini-3.1-flash-lite">gemini-3.1-flash-lite</option>
-                                <option value="gemini-flash-lite-latest">gemini-flash-lite-latest</option>
-                                <option value="gemini-3.1-pro-preview">gemini-3.1-pro-preview</option>
-                                <option value="gemini-pro-latest">gemini-pro-latest</option>
-                              </>
-                            )}
-                            {!availableModels.includes(mName) && ![
-                              'gemini-3.7-flash', 'gemini-3.6-flash', 'gemini-3.5-flash', 'gemini-3.5-flash-lite', 
-                              'gemini-3.1-flash-lite', 'gemini-flash-lite-latest', 'gemini-3.1-pro-preview', 'gemini-pro-latest'
-                            ].includes(mName) && (
-                              <option value="custom">Custom: {mName}</option>
-                            )}
-                          </select>
-                        </div>
+                              ))}
+                            </select>
+                          </div>
 
-                        <button
-                          type="button"
-                          disabled={arr.length <= 1}
-                          onClick={() => {
-                            if (arr.length <= 1) return;
-                            const newArr = arr.filter((_, i) => i !== idx);
-                            setConfig({ ...config, integration: { ...config.integration, modelFallbacks: newArr } });
-                          }}
-                          title="Delete Model"
-                          style={{ padding: '6px 8px', background: arr.length <= 1 ? '#F3F4F6' : '#FFFFFF', border: '1px solid ' + (arr.length <= 1 ? '#E5E7EB' : '#FCA5A5'), borderRadius: '4px', cursor: arr.length <= 1 ? 'not-allowed' : 'pointer', color: arr.length <= 1 ? '#9CA3AF' : '#DC2626', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
-                        >
-                          <Trash2 size={13} />
-                        </button>
-                      </div>
-                    ))}
+                          <button
+                            type="button"
+                            disabled={arr.length <= 1}
+                            onClick={() => {
+                              if (arr.length <= 1) return;
+                              const newArr = arr.filter((_, i) => i !== idx);
+                              setConfig({ ...config, integration: { ...config.integration, modelFallbacks: newArr } });
+                            }}
+                            title="Delete Model"
+                            style={{ padding: '6px 8px', background: arr.length <= 1 ? '#F3F4F6' : '#FFFFFF', border: '1px solid ' + (arr.length <= 1 ? '#E5E7EB' : '#FCA5A5'), borderRadius: '4px', cursor: arr.length <= 1 ? 'not-allowed' : 'pointer', color: arr.length <= 1 ? '#9CA3AF' : '#DC2626', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
+                      );
+                    })}
                   </div>
 
                   {/* Add Model Controls */}
