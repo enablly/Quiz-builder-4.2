@@ -494,8 +494,13 @@ export default function App() {
   // Locking System State
   const [sessionId] = useState(() => Math.random().toString(36).substring(2, 10));
   const [currentUser, setCurrentUser] = useState(() => {
+    // Detect if we are running in the AI Studio iframe/preview pane
+    const isIframe = window.self !== window.top;
     let name = localStorage.getItem('builderUserName');
-    if (!name) {
+    if (isIframe) {
+      name = "Adam Lau (Admin)";
+      localStorage.setItem('builderUserName', name);
+    } else if (!name || name === "Anonymous User") {
       name = prompt("Please enter your name to collaborate:");
       if (!name) name = "Anonymous User";
       localStorage.setItem('builderUserName', name);
