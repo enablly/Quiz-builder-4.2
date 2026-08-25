@@ -1513,8 +1513,8 @@ export default function App() {
               <span>✓</span> Qualified for Consultation
             </div>
           ` : `
-            <button type="button" onclick="window.requestAssessment ? window.requestAssessment() : null" style="background: #2563EB; color: #FFFFFF; font-weight: 600; font-size: 14px; padding: 12px 28px; border-radius: 8px; border: none; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; transition: all 0.2s ease; box-shadow: 0 2px 6px rgba(37, 99, 235, 0.25);">
-              <span>✉️</span> Apply Now
+            <button type="button" onclick="if (window.handleCtaAction) { window.handleCtaAction(); } else if (window.requestAssessment) { window.requestAssessment(); }" style="background: var(--primary-color, #2563EB); color: #FFFFFF; font-weight: 600; font-size: 14px; padding: 12px 28px; border-radius: 8px; border: none; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; transition: all 0.2s ease; box-shadow: 0 2px 6px rgba(37, 99, 235, 0.25);">
+              <span>✉️</span> ${config.ctaConfig?.primaryCtaText || "Apply Now"}
             </button>
           `}
         </div>
@@ -1797,6 +1797,23 @@ export default function App() {
       timestamp: new Date().toISOString() 
     });
   };
+
+  const handleCtaAction = () => {
+    if (config.ctaConfig?.primaryCtaType === 'redirect' && config.ctaConfig?.redirectUrl) {
+      window.open(config.ctaConfig.redirectUrl, '_blank');
+    } else {
+      requestAssessment();
+    }
+  };
+
+  useEffect(() => {
+    window.requestAssessment = requestAssessment;
+    window.handleCtaAction = handleCtaAction;
+    return () => {
+      delete window.requestAssessment;
+      delete window.handleCtaAction;
+    };
+  }, [config.ctaConfig, lead.email]);
 
   const submitTel = async () => {
     if (!tel) return;

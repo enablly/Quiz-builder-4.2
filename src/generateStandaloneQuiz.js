@@ -1291,8 +1291,9 @@ export function generateStandaloneHtml(rawConfig, backendUrl = '') {
         html += '<span>✓</span> Qualified for Consultation';
         html += '</div>';
       } else {
-        html += '<button type="button" onclick="requestAssessment()" style="background: #2563EB; color: #FFFFFF; font-weight: 600; font-size: 14px; padding: 12px 28px; border-radius: 8px; border: none; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; transition: all 0.2s ease; box-shadow: 0 2px 6px rgba(37, 99, 235, 0.25);">';
-        html += '<span>✉️</span> Apply Now';
+        const ctaOnClick = isRedirect ? "window.open('" + escapeHtml(ctaCfg.redirectUrl) + "', '_blank')" : "requestAssessment()";
+        html += '<button type="button" onclick="' + ctaOnClick + '" style="background: var(--primary-color, #2563EB); color: #FFFFFF; font-weight: 600; font-size: 14px; padding: 12px 28px; border-radius: 8px; border: none; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; transition: all 0.2s ease; box-shadow: 0 2px 6px rgba(37, 99, 235, 0.25);">';
+        html += '<span>✉️</span> ' + escapeHtml(primaryText);
         html += '</button>';
       }
       html += '</div>';
