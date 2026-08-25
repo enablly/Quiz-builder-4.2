@@ -310,8 +310,8 @@ IMPORTANT:
                   temperature: 0.7,
                 }
               }),
-              25000,
-              `Model ${modelName} timed out after 25s`
+              8000,
+              `Model ${modelName} timed out after 8s`
             );
           } catch (genErr: any) {
             // Fallback without config if model doesn't support responseMimeType
@@ -320,8 +320,8 @@ IMPORTANT:
                 model: modelName,
                 contents: promptStr,
               }),
-              25000,
-              `Model ${modelName} timed out after 25s`
+              8000,
+              `Model ${modelName} timed out after 8s`
             );
           }
 

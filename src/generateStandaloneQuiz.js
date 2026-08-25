@@ -895,9 +895,27 @@ export function generateStandaloneHtml(rawConfig, backendUrl = '') {
           }
         }
 
+        function addDiagnosticLog(msg, color = '#CBD5E1') {
+          const consoleEl = document.getElementById('diagnostic-thinking-console');
+          if (consoleEl) {
+            const row = document.createElement('div');
+            row.style.color = color;
+            const time = new Date().toLocaleTimeString('en-US', { hour12: false });
+            row.innerHTML = '[' + time + '] ' + msg;
+            consoleEl.appendChild(row);
+            consoleEl.scrollTop = consoleEl.scrollHeight;
+          }
+        }
+
         // Stagger step transitions: 0 -> 1 after 1.2s -> 2 after 2.7s (crawls at step 3 while fetching)
-        const t1 = setTimeout(() => updateStepUI(1), 1200);
-        const t2 = setTimeout(() => updateStepUI(2), 2700);
+        const t1 = setTimeout(() => {
+          updateStepUI(1);
+          addDiagnosticLog('[Client Engine] Stage 2/4: Processing survey index metrics & benchmarks...');
+        }, 1200);
+        const t2 = setTimeout(() => {
+          updateStepUI(2);
+          addDiagnosticLog('[Client Engine] Stage 3/4: Assessing acoustic transmission (STC) & IT adaptability...');
+        }, 2700);
 
         // Run webhook in parallel
         sendWebhook({
@@ -919,9 +937,13 @@ export function generateStandaloneHtml(rawConfig, backendUrl = '') {
         // Fetch AI analysis if endpoint available
         const fetchAiPromise = (async () => {
           try {
+            addDiagnosticLog('[Client Engine] Querying model pipeline for ' + (lead.company || 'organization') + '...');
+            const controller = new AbortController();
+            const fetchTimeout = setTimeout(() => controller.abort(), 12000);
             const resp = await fetch("${apiBase}/api/analyze-company", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
+              signal: controller.signal,
               body: JSON.stringify({
                 company: lead.company,
                 leadName: lead.name,
@@ -931,18 +953,27 @@ export function generateStandaloneHtml(rawConfig, backendUrl = '') {
                 aiPersona: QUIZ_CONFIG.aiPersona,
                 reportSections: QUIZ_CONFIG.reportSections,
                 dangerZoneConfig: QUIZ_CONFIG.dangerZoneConfig,
+                modelFallbacks: QUIZ_CONFIG.integration?.modelFallbacks || ['gemini-3.7-flash', 'gemini-3.6-flash', 'gemini-3.5-flash', 'gemini-3.5-flash-lite', 'gemini-pro-latest'],
                 customApiKey: QUIZ_CONFIG.integration?.geminiApiKey || (QUIZ_CONFIG.integration?.geminiApiKeyPart1 && QUIZ_CONFIG.integration?.geminiApiKeyPart4 ? (QUIZ_CONFIG.integration.geminiApiKeyPart1 + QUIZ_CONFIG.integration.geminiApiKeyPart2 + QUIZ_CONFIG.integration.geminiApiKeyPart3 + QUIZ_CONFIG.integration.geminiApiKeyPart4) : (QUIZ_CONFIG.integration?.geminiApiKeyPart1 ? QUIZ_CONFIG.integration.geminiApiKeyPart1 + (QUIZ_CONFIG.integration.geminiApiKeyPart2 || '') : ''))
               })
             });
+            clearTimeout(fetchTimeout);
             if (resp.ok) {
               const data = await resp.json();
-              if (data.html) window.standaloneAiReport = data.html;
+              if (data.thinkingLogs && Array.isArray(data.thinkingLogs)) {
+                data.thinkingLogs.forEach(l => addDiagnosticLog(l.replace(/^\[\d{2}:\d{2}:\d{2}\]\s*/, ''), '#38BDF8'));
+              }
+              if (data.html) {
+                window.standaloneAiReport = data.html;
+                addDiagnosticLog('[SUCCESS] Model synthesis verified. Assembling executive report...', '#4ADE80');
+              }
               return;
             } else {
               throw new Error("Backend responded with " + resp.status);
             }
           } catch (e) {
-            console.warn("Backend AI fetch failed, attempting client-side fallback...", e);
+            console.warn("Backend AI fetch notice:", e);
+            addDiagnosticLog('[SYNTHESIS] Assembling certified benchmark diagnostic report (Steelcase / Gensler)...', '#FCD34D');
             const ig = QUIZ_CONFIG.integration;
             const assembledKey = ig ? (ig.geminiApiKey || (ig.geminiApiKeyPart1 && ig.geminiApiKeyPart4 ? (ig.geminiApiKeyPart1 + ig.geminiApiKeyPart2 + ig.geminiApiKeyPart3 + ig.geminiApiKeyPart4) : (ig.geminiApiKeyPart1 ? (ig.geminiApiKeyPart1 + (ig.geminiApiKeyPart2 || '')) : ''))) : '';
             if (assembledKey) {
@@ -992,24 +1023,33 @@ export function generateStandaloneHtml(rawConfig, backendUrl = '') {
 
                 for (const mName of clientModels) {
                   try {
-                    // 1. Try with Google Search tool
+                    addDiagnosticLog('[Direct API] Querying ' + mName + '...', '#94A3B8');
+                    // 1. Try with Google Search tool with 5s timeout
+                    const ctl = new AbortController();
+                    const ctlTimer = setTimeout(() => ctl.abort(), 5000);
                     let resp = await fetch("https://generativelanguage.googleapis.com/v1beta/models/" + mName + ":generateContent?key=" + cKey, {
                       method: "POST",
                       headers: { "Content-Type": "application/json" },
+                      signal: ctl.signal,
                       body: JSON.stringify({
                         contents: [{ parts: [{ text: prompt }] }],
                         tools: [{ googleSearch: {} }]
                       })
                     });
+                    clearTimeout(ctlTimer);
                     if (!resp.ok) {
                       // 2. Try without Search tool
+                      const ctl2 = new AbortController();
+                      const ctlTimer2 = setTimeout(() => ctl2.abort(), 5000);
                       resp = await fetch("https://generativelanguage.googleapis.com/v1beta/models/" + mName + ":generateContent?key=" + cKey, {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
+                        signal: ctl2.signal,
                         body: JSON.stringify({
                           contents: [{ parts: [{ text: prompt }] }]
                         })
                       });
+                      clearTimeout(ctlTimer2);
                     }
                     if (resp.ok) {
                       const aiData = await resp.json();
@@ -1046,6 +1086,7 @@ export function generateStandaloneHtml(rawConfig, backendUrl = '') {
                         }
 
                         window.standaloneAiReport = generateStaticAiReport(calculateScore(), lead.company, lead.name, sec2, sec4);
+                        addDiagnosticLog('[SUCCESS] Report compiled with ' + mName, '#4ADE80');
                         break;
                       }
                     }
@@ -1054,7 +1095,7 @@ export function generateStandaloneHtml(rawConfig, backendUrl = '') {
                   }
                 }
               } catch (clientErr) {
-                console.error("Client-side AI fallback also failed:", clientErr);
+                console.error("Client-side AI fallback error:", clientErr);
               }
             } else {
               console.warn("No Gemini API key in standalone config. Skipping AI and falling back to static template.");
@@ -1062,16 +1103,17 @@ export function generateStandaloneHtml(rawConfig, backendUrl = '') {
           }
         })();
 
-        // Wait for fetch or maximum timer, then zoom to step 4 (100% complete)
-        const timerPromise = new Promise(res => setTimeout(res, 45000));
+        // Wait for fetch or maximum timer (10s max), then zoom to step 4 (100% complete)
+        const timerPromise = new Promise(res => setTimeout(res, 10000));
         Promise.race([fetchAiPromise, timerPromise]).finally(() => {
           clearTimeout(t1);
           clearTimeout(t2);
           updateStepUI(3);
+          addDiagnosticLog('[Stage 4/4] Finalizing and rendering diagnostic roadmap...', '#38BDF8');
           setTimeout(() => {
             currentStep++;
             render();
-          }, 500);
+          }, 600);
         });
         return;
       }
