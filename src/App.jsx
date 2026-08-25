@@ -4691,7 +4691,7 @@ export default function App() {
                 <div className="field-group">
                   <label>Google Sheets Webhook URL</label>
                   <input placeholder="https://script.google.com/macros/s/..." value={config.integration.webhookUrl} onChange={e => setConfig({...config, integration: {...config.integration, webhookUrl: e.target.value}})} />
-                  <div style={{fontSize:'12px', color:'#059669', marginTop:'6px', display:'flex', alignItems:'center', gap:'4px'}}><CheckCircle2 size={14}/> Settings automatically saved locally</div>
+                  <div style={{fontSize:'12px', color:'#059669', marginTop:'6px', display:'flex', alignItems:'center', gap:'4px'}}><CheckCircle2 size={14}/> Saved to Cloud Database (Shared in real-time with team)</div>
                 </div>
 
                 <div style={{ marginTop: '16px', background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: '8px', padding: '16px' }}>
@@ -5034,7 +5034,8 @@ export default function App() {
                 <div className="field-group" style={{ marginTop: '16px' }}>
                   <label>Gemini API Key (For Custom AI Reports)</label>
                   <input placeholder="AIzaSy..." type="password" value={config.integration.geminiApiKey} onChange={e => setConfig({...config, integration: {...config.integration, geminiApiKey: e.target.value}})} />
-                  <p style={{fontSize:'12px', color:'#6B7280', marginTop:'8px'}}>Get a free key from Google AI Studio. If provided, the final report will automatically generate a custom analysis using Gemini.</p>
+                  <div style={{fontSize:'12px', color:'#059669', marginTop:'6px', display:'flex', alignItems:'center', gap:'4px'}}><CheckCircle2 size={14}/> Saved to Cloud Database (Shared in real-time with team)</div>
+                  <p style={{fontSize:'12px', color:'#6B7280', marginTop:'6px'}}>Get a free key from Google AI Studio. If provided, the final report will automatically generate a custom analysis using Gemini.</p>
                 </div>
 
                 <div className="field-group" style={{ marginTop: '20px', padding: '16px', background: '#F9FAFB', borderRadius: '8px', border: '1px solid #E5E7EB' }}>
