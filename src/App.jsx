@@ -553,7 +553,60 @@ export default function App() {
     };
   }, [currentUser, isLockedByOther, isLockLoaded, sessionId]);
 
+  // Automatic tab-close / unload lock release
+  useEffect(() => {
+    const handleUnload = () => {
+      if (!isLockedByOther && lockData?.lockedBySession === sessionId) {
+        // Send beacon or synchronous firestore reset if possible
+        try {
+          setDoc(doc(db, 'builder', 'lock'), {
+            lockedBySession: null,
+            lockedByName: null,
+            expiresAt: 0
+          });
+        } catch (e) {}
+      }
+    };
+    window.addEventListener('beforeunload', handleUnload);
+    window.addEventListener('pagehide', handleUnload);
+    return () => {
+      window.removeEventListener('beforeunload', handleUnload);
+      window.removeEventListener('pagehide', handleUnload);
+    };
+  }, [isLockedByOther, lockData, sessionId]);
+
   const [lockRequest, setLockRequest] = useState(null);
+  const [isRechecking, setIsRechecking] = useState(false);
+
+  const recheckLock = async () => {
+    setIsRechecking(true);
+    try {
+      const docSnap = await getDoc(doc(db, 'builder', 'lock'));
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        setLockData(data);
+        if (!data || !data.lockedBySession || data.expiresAt <= Date.now()) {
+          // Lock is free, acquire it
+          await setDoc(doc(db, 'builder', 'lock'), {
+            lockedBySession: sessionId,
+            lockedByName: currentUser,
+            expiresAt: Date.now() + 120000
+          });
+        }
+      } else {
+        setLockData(null);
+        await setDoc(doc(db, 'builder', 'lock'), {
+          lockedBySession: sessionId,
+          lockedByName: currentUser,
+          expiresAt: Date.now() + 120000
+        });
+      }
+    } catch (err) {
+      console.error("Failed to recheck lock", err);
+    } finally {
+      setTimeout(() => setIsRechecking(false), 500);
+    }
+  };
 
   useEffect(() => {
     const unsub = onSnapshot(doc(db, 'builder', 'lock_request'), (docSnap) => {
@@ -6685,13 +6738,42 @@ export default function App() {
               <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <Lock size={14} /> <strong>READ ONLY:</strong> Locked by {lockData?.lockedByName}
               </span>
-              <div style={{ display: 'flex', gap: '8px' }}>
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                <button
+                  onClick={recheckLock}
+                  disabled={isRechecking}
+                  title="Recheck lock status from cloud"
+                  style={{
+                    padding: '4px 10px',
+                    fontSize: '12px',
+                    background: '#FFFFFF',
+                    color: '#991B1B',
+                    border: '1px solid #FCA5A5',
+                    borderRadius: '4px',
+                    cursor: isRechecking ? 'not-allowed' : 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '5px',
+                    fontWeight: '600'
+                  }}
+                >
+                  <RefreshCw size={12} className={isRechecking ? 'animate-spin' : ''} />
+                  {isRechecking ? 'Checking...' : 'Recheck'}
+                </button>
+
                 {lockRequest?.requestBySession === sessionId ? (
-                  <span style={{ padding: '4px 10px', fontSize: '12px', background: '#FCA5A5', color: '#7F1D1D', borderRadius: '4px', display: 'flex', alignItems: 'center' }}>Requested... Waiting for {lockData?.lockedByName} to yield</span>
+                  <span style={{ padding: '4px 10px', fontSize: '12px', background: '#FCA5A5', color: '#7F1D1D', borderRadius: '4px', display: 'flex', alignItems: 'center' }}>
+                    Requested... Waiting for {lockData?.lockedByName} to yield
+                  </span>
                 ) : (
-                  <button onClick={requestEditAccess} style={{ padding: '4px 10px', fontSize: '12px', background: '#EF4444', color: 'white', borderRadius: '4px', border: 'none', cursor: 'pointer', fontWeight: 'bold' }}>Request Edit Access</button>
+                  <button onClick={requestEditAccess} style={{ padding: '4px 10px', fontSize: '12px', background: '#EF4444', color: 'white', borderRadius: '4px', border: 'none', cursor: 'pointer', fontWeight: 'bold' }}>
+                    Request Edit Access
+                  </button>
                 )}
-                <button onClick={forceTakeover} style={{ padding: '4px 10px', fontSize: '12px', background: 'transparent', color: '#991B1B', border: '1px solid #FCA5A5', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>Force Takeover</button>
+
+                <button onClick={forceTakeover} style={{ padding: '4px 10px', fontSize: '12px', background: '#991B1B', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>
+                  Force Takeover
+                </button>
               </div>
             </>
           ) : lockRequest ? (
@@ -6699,7 +6781,9 @@ export default function App() {
               <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <span style={{ color: '#EAB308' }}>●</span> <strong>REQUEST:</strong> {lockRequest.requestByName} is requesting to edit.
               </span>
-              <button onClick={yieldLock} style={{ padding: '4px 12px', fontSize: '12px', background: '#CA8A04', color: 'white', borderRadius: '4px', border: 'none', cursor: 'pointer', fontWeight: 'bold', boxShadow: '0 1px 2px rgba(0,0,0,0.1)' }}>Yield Lock (Save & Exit)</button>
+              <button onClick={yieldLock} style={{ padding: '4px 12px', fontSize: '12px', background: '#CA8A04', color: 'white', borderRadius: '4px', border: 'none', cursor: 'pointer', fontWeight: 'bold', boxShadow: '0 1px 2px rgba(0,0,0,0.1)' }}>
+                Yield Lock (Save & Exit)
+              </button>
             </>
           ) : (
             <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
