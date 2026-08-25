@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { Settings, Plus, Trash2, CheckCircle2, BarChart2, Mail, Lock, ArrowRight, ArrowLeft, ArrowUp, ArrowDown, Download, Code, Phone, RefreshCw, Eye, FileText, Upload, Image, AlertCircle, Globe, ExternalLink, Send, Key, Check, Copy, Bold, Italic, Underline, Strikethrough, List, ListOrdered, Quote, Highlighter, Heading4, User, Sparkles, Activity } from 'lucide-react';
+import { Settings, Plus, Trash2, CheckCircle2, BarChart2, Mail, Lock, Unlock, ArrowRight, ArrowLeft, ArrowUp, ArrowDown, Download, Code, Phone, RefreshCw, Eye, FileText, Upload, Image, AlertCircle, Globe, ExternalLink, Send, Key, Check, Copy, Bold, Italic, Underline, Strikethrough, List, ListOrdered, Quote, Highlighter, Heading4, User, Sparkles, Activity } from 'lucide-react';
 import JSZip from 'jszip';
 import RichTextEditor from './RichTextEditor';
 import { generateStandaloneHtml, generateReadme, generateLeadPayloadSchema } from './generateStandaloneQuiz';
@@ -547,6 +547,66 @@ export default function App() {
       if (intervalId) clearInterval(intervalId);
     };
   }, [currentUser, isLockedByOther, isLockLoaded, sessionId]);
+
+  const [lockRequest, setLockRequest] = useState(null);
+
+  useEffect(() => {
+    const unsub = onSnapshot(doc(db, 'builder', 'lock_request'), (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        if (data && data.timestamp > Date.now() - 120000) {
+           setLockRequest(data);
+        } else {
+           setLockRequest(null);
+        }
+      } else {
+        setLockRequest(null);
+      }
+    });
+    return () => unsub();
+  }, []);
+
+  const requestEditAccess = async () => {
+    try {
+      await setDoc(doc(db, 'builder', 'lock_request'), {
+        requestByName: currentUser,
+        requestBySession: sessionId,
+        timestamp: Date.now()
+      });
+    } catch (err) {}
+  };
+
+  const yieldLock = async () => {
+    try {
+      let payload = { ...config };
+      const payloadString = JSON.stringify(payload);
+      if (new Blob([payloadString]).size > 1000000) {
+        payload = JSON.parse(payloadString);
+        if (payload.branding) payload.branding.logoUrl = "";
+        if (Array.isArray(payload.reportSections)) {
+          payload.reportSections = payload.reportSections.map(sec => {
+            const newSec = { ...sec, imageUrl: "" };
+            if (Array.isArray(newSec.extraBlocks)) {
+              newSec.extraBlocks = newSec.extraBlocks.map(b => ({ ...b, imageUrl: "" }));
+            }
+            return newSec;
+          });
+        }
+      }
+      await setDoc(doc(db, 'builder', 'config'), payload);
+      
+      await setDoc(doc(db, 'builder', 'lock'), {
+        lockedBySession: lockRequest?.requestBySession,
+        lockedByName: lockRequest?.requestByName,
+        expiresAt: Date.now() + 120000
+      });
+      
+      await setDoc(doc(db, 'builder', 'lock_request'), { timestamp: 0 });
+      setLockRequest(null);
+    } catch (err) {
+      console.error(err);
+    }
+  };
 
   // 3. Force Takeover Helper
   const forceTakeover = async () => {
@@ -6598,27 +6658,72 @@ export default function App() {
         bottom: 0,
         left: 0,
         right: 0,
-        height: '36px',
-        backgroundColor: isLockedByOther ? '#FEE2E2' : '#ECFCCB',
-        borderTop: isLockedByOther ? '1px solid #FCA5A5' : '1px solid #BEF264',
+        height: '44px',
+        backgroundColor: isLockedByOther ? '#FEE2E2' : (lockRequest ? '#FEF08A' : '#ECFCCB'),
+        borderTop: isLockedByOther ? '1px solid #FCA5A5' : (lockRequest ? '1px solid #FDE047' : '1px solid #BEF264'),
         display: 'flex',
         alignItems: 'center',
+        justifyContent: 'space-between',
         padding: '0 24px',
         fontSize: '13px',
         zIndex: 9999,
-        color: isLockedByOther ? '#991B1B' : '#3F6212',
-        fontWeight: '500'
+        color: isLockedByOther ? '#991B1B' : (lockRequest ? '#854D0E' : '#3F6212'),
+        fontWeight: '500',
+        transition: 'all 0.3s ease'
       }}>
-        {!isLockLoaded ? (
-          "⏳ Connecting to cloud..."
-        ) : isLockedByOther ? (
-          <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <Lock size={14} /> <strong>READ ONLY:</strong> Locked by {lockData?.lockedByName} (Session expires if inactive)
-          </span>
-        ) : (
-          <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span style={{ color: '#65A30D' }}>●</span> <strong>EDITING:</strong> You have the lock. Changes are auto-saving to cloud.
-          </span>
+        {/* Left Side: Status Text & Actions */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+          {!isLockLoaded ? (
+            <div>⏳ Connecting to cloud...</div>
+          ) : isLockedByOther ? (
+            <>
+              <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Lock size={14} /> <strong>READ ONLY:</strong> Locked by {lockData?.lockedByName}
+              </span>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                {lockRequest?.requestBySession === sessionId ? (
+                  <span style={{ padding: '4px 10px', fontSize: '12px', background: '#FCA5A5', color: '#7F1D1D', borderRadius: '4px', display: 'flex', alignItems: 'center' }}>Requested... Waiting for {lockData?.lockedByName} to yield</span>
+                ) : (
+                  <button onClick={requestEditAccess} style={{ padding: '4px 10px', fontSize: '12px', background: '#EF4444', color: 'white', borderRadius: '4px', border: 'none', cursor: 'pointer', fontWeight: 'bold' }}>Request Edit Access</button>
+                )}
+                <button onClick={forceTakeover} style={{ padding: '4px 10px', fontSize: '12px', background: 'transparent', color: '#991B1B', border: '1px solid #FCA5A5', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>Force Takeover</button>
+              </div>
+            </>
+          ) : lockRequest ? (
+            <>
+              <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ color: '#EAB308' }}>●</span> <strong>REQUEST:</strong> {lockRequest.requestByName} is requesting to edit.
+              </span>
+              <button onClick={yieldLock} style={{ padding: '4px 12px', fontSize: '12px', background: '#CA8A04', color: 'white', borderRadius: '4px', border: 'none', cursor: 'pointer', fontWeight: 'bold', boxShadow: '0 1px 2px rgba(0,0,0,0.1)' }}>Yield Lock (Save & Exit)</button>
+            </>
+          ) : (
+            <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ color: '#65A30D' }}>●</span> <strong>EDITING:</strong> You have the lock. Changes are auto-saving to cloud.
+            </span>
+          )}
+        </div>
+
+        {/* Right Side: iOS Style Lock Icon */}
+        {isLockLoaded && (
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            width: '28px',
+            height: '28px',
+            borderRadius: '50%',
+            backgroundColor: isLockedByOther ? 'rgba(239, 68, 68, 0.15)' : 'rgba(101, 163, 13, 0.2)',
+            color: isLockedByOther ? '#DC2626' : '#4D7C0F',
+            transition: 'all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
+            transform: isLockedByOther ? 'scale(1)' : 'scale(1.05)',
+            boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.05)'
+          }}>
+            {isLockedByOther ? (
+              <Lock size={14} style={{ strokeWidth: 2.5 }} />
+            ) : (
+              <Unlock size={14} style={{ strokeWidth: 2.5, transform: 'translateY(-1px)' }} />
+            )}
+          </div>
         )}
       </div>
 
