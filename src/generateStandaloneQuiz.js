@@ -583,7 +583,7 @@ export function generateStandaloneHtml(rawConfig, backendUrl = '') {
             '</label>';
 
           if (cq.type === 'select' || !cq.type) {
-            formFieldsHtml += '<select onchange="handleCustomAnswer(\\'' + qId + '\\', this.value)" style="width:100%; padding:10px 14px; border:1px solid #DADCE0; border-radius:4px; font-size:14px; background-color:white; color:' + (currentVal ? '#111827' : '#6B7280') + ';">' +
+            formFieldsHtml += '<select onchange="handleCustomAnswer(\'' + qId + '\', this.value)" style="width:100%; padding:10px 14px; border:1px solid #DADCE0; border-radius:4px; font-size:14px; background-color:white; color:' + (currentVal ? '#111827' : '#6B7280') + ';">' +
               '<option value="" ' + (!currentVal ? 'selected' : '') + ' disabled>-- Select an option --</option>';
             (cq.options || []).forEach(function(opt) {
               formFieldsHtml += '<option value="' + escapeHtml(opt) + '" ' + (currentVal === opt ? 'selected' : '') + '>' + escapeHtml(opt) + '</option>';
@@ -594,21 +594,21 @@ export function generateStandaloneHtml(rawConfig, backendUrl = '') {
             (cq.options || []).forEach(function(opt) {
               const isChecked = currentVal === opt;
               formFieldsHtml += '<label style="display:flex; align-items:center; gap:8px; font-size:13px; color:#374151; background:' + (isChecked ? '#EFF6FF' : '#F9FAFB') + '; border:' + (isChecked ? '1.5px solid #3B82F6' : '1px solid #E5E7EB') + '; padding:8px 12px; border-radius:6px; cursor:pointer;">' +
-                '<input type="radio" name="custom_q_' + qId + '" value="' + escapeHtml(opt) + '" ' + (isChecked ? 'checked' : '') + ' onchange="handleCustomAnswer(\\'' + qId + '\\', this.value)" style="accent-color:#1D4ED8; cursor:pointer;" />' +
+                '<input type="radio" name="custom_q_' + qId + '" value="' + escapeHtml(opt) + '" ' + (isChecked ? 'checked' : '') + ' onchange="handleCustomAnswer(\'' + qId + '\', this.value)" style="accent-color:#1D4ED8; cursor:pointer;" />' +
                 '<span>' + escapeHtml(opt) + '</span>' +
                 '</label>';
             });
             formFieldsHtml += '</div>';
           } else if (cq.type === 'text') {
-            formFieldsHtml += '<input type="text" placeholder="' + escapeHtml(cq.placeholder || 'Enter answer...') + '" value="' + escapeHtml(currentVal) + '" oninput="handleCustomAnswer(\\'' + qId + '\\', this.value)" />';
+            formFieldsHtml += '<input type="text" placeholder="' + escapeHtml(cq.placeholder || 'Enter answer...') + '" value="' + escapeHtml(currentVal) + '" oninput="handleCustomAnswer(\'' + qId + '\', this.value)" />';
           } else if (cq.type === 'number') {
-            formFieldsHtml += '<input type="number" placeholder="' + escapeHtml(cq.placeholder || '0') + '" value="' + escapeHtml(currentVal) + '" oninput="handleCustomAnswer(\\'' + qId + '\\', this.value)" />';
+            formFieldsHtml += '<input type="number" placeholder="' + escapeHtml(cq.placeholder || '0') + '" value="' + escapeHtml(currentVal) + '" oninput="handleCustomAnswer(\'' + qId + '\', this.value)" />';
           } else if (cq.type === 'rating') {
             const maxRating = cq.ratingMax || 5;
             formFieldsHtml += '<div style="display:flex; gap:8px; flex-wrap:wrap;">';
             for (let r = 1; r <= maxRating; r++) {
               const isSelected = Number(currentVal) === r;
-              formFieldsHtml += '<button type="button" onclick="handleCustomAnswer(\\'' + qId + '\\', ' + r + ')" style="width:38px; height:38px; border-radius:6px; border:' + (isSelected ? '2px solid #1D4ED8' : '1px solid #D1D5DB') + '; background:' + (isSelected ? '#1D4ED8' : 'white') + '; color:' + (isSelected ? 'white' : '#374151') + '; font-weight:700; font-size:14px; cursor:pointer; transition:all 0.15s ease;">' + r + '</button>';
+              formFieldsHtml += '<button type="button" onclick="handleCustomAnswer(\'' + qId + '\', ' + r + ')" style="width:38px; height:38px; border-radius:6px; border:' + (isSelected ? '2px solid #1D4ED8' : '1px solid #D1D5DB') + '; background:' + (isSelected ? '#1D4ED8' : 'white') + '; color:' + (isSelected ? 'white' : '#374151') + '; font-weight:700; font-size:14px; cursor:pointer; transition:all 0.15s ease;">' + r + '</button>';
             }
             formFieldsHtml += '</div>';
           }
