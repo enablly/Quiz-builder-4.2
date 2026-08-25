@@ -1296,7 +1296,7 @@ export function generateStandaloneHtml(rawConfig, backendUrl = '') {
       } else {
         html += '<div style="margin-top: 12px; padding: 20px 24px; background:#F0FDF4; border:1px solid #BBF7D0; border-left: 5px solid #16A34A; border-radius:8px;">';
         html += '<h3 style="margin-top:0; color:#14532D; font-size:15px; font-weight:700;">🚀 Tailored Spatial Optimization & Implementation Plan</h3>';
-        html += '<p style="font-size:13.5px; color:#166534; line-height:1.6; margin-bottom:12px;"><strong>Actionable Spatial Interventions:</strong> High-impact spatial roadmap tailored to ' + compStr + '\\\'s readiness score and team parameters:</p>';
+        html += '<p style="font-size:13.5px; color:#166534; line-height:1.6; margin-bottom:12px;"><strong>Actionable Spatial Interventions:</strong> High-impact spatial roadmap tailored to ' + compStr + '\'s readiness score and team parameters:</p>';
         html += '<ul style="margin:0; padding-left:20px; font-size:13.5px; line-height:1.6; color:#14532D;">';
         html += '<li><strong>Deploy Acoustically Rated Focus Pods:</strong> Isolate intensive voice prompting workflows using certified STC 38+ pods.</li>';
         html += '<li><strong>Adopt Flexible Reconfigurable Zones:</strong> Implement modular partitions and agile furniture to support quick pivots between solo prompting and team syncs.</li>';
