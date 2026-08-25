@@ -811,7 +811,15 @@ export function generateStandaloneHtml(rawConfig, backendUrl = '') {
           window.standaloneAiReport = generateStaticAiReport(calculateScore(), lead.company, lead.name);
         }
         currentStep = (QUIZ_CONFIG.questions ? QUIZ_CONFIG.questions.length : 0) + 1;
-        render();
+        try {
+          render();
+        } catch (err) {
+          console.error("Error during final render:", err);
+          const mainCard = document.getElementById('quiz-main-card');
+          if (mainCard) {
+             mainCard.innerHTML = "<div style='padding:40px;text-align:center;'><h3>Diagnosis Complete</h3><p>Your report was generated successfully, but a rendering error occurred. Please check the console.</p><button onclick='window.location.reload()'>Reload</button></div>";
+          }
+        }
       };
 
       // Absolute fallback failsafe: Force result screen after 11 seconds no matter what
