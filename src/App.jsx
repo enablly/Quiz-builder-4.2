@@ -492,6 +492,7 @@ export default function App() {
   const [isSaving, setIsSaving] = useState(false);
 
   // Locking System State
+  const [sessionId] = useState(() => Math.random().toString(36).substring(2, 10));
   const [currentUser, setCurrentUser] = useState(() => {
     let name = localStorage.getItem('builderUserName');
     if (!name) {
@@ -502,28 +503,34 @@ export default function App() {
     return name;
   });
   const [lockData, setLockData] = useState(null);
-  const isLockedByOther = lockData && lockData.lockedBy !== currentUser && lockData.expiresAt > Date.now();
+  const [isLockLoaded, setIsLockLoaded] = useState(false);
+  const isLockedByOther = lockData && lockData.lockedBySession !== sessionId && lockData.expiresAt > Date.now();
   
   // 1. Lock Listener Effect
   useEffect(() => {
     const unsub = onSnapshot(doc(db, 'builder', 'lock'), (docSnap) => {
       if (docSnap.exists()) {
         setLockData(docSnap.data());
+      } else {
+        setLockData(null);
       }
+      setIsLockLoaded(true);
     });
     return () => unsub();
   }, []);
 
   // 2. Heartbeat Effect (Pings every 30s if not locked by someone else)
   useEffect(() => {
+    if (!isLockLoaded) return; // Wait until initial sync
+
     let intervalId;
     const updateLock = async () => {
-      // Don't grab the lock if someone else has it actively
       if (isLockedByOther) return; 
       
       try {
         await setDoc(doc(db, 'builder', 'lock'), {
-          lockedBy: currentUser,
+          lockedBySession: sessionId,
+          lockedByName: currentUser,
           expiresAt: Date.now() + 120000 // 2 minutes from now
         });
       } catch (err) {
@@ -531,17 +538,22 @@ export default function App() {
       }
     };
 
-    updateLock(); // initial ping
-    intervalId = setInterval(updateLock, 30000); // ping every 30s
+    if (!isLockedByOther) {
+      updateLock();
+      intervalId = setInterval(updateLock, 30000);
+    }
     
-    return () => clearInterval(intervalId);
-  }, [currentUser, isLockedByOther]);
+    return () => {
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, [currentUser, isLockedByOther, isLockLoaded, sessionId]);
 
   // 3. Force Takeover Helper
   const forceTakeover = async () => {
     try {
       await setDoc(doc(db, 'builder', 'lock'), {
-        lockedBy: currentUser,
+        lockedBySession: sessionId,
+        lockedByName: currentUser,
         expiresAt: Date.now() + 120000
       });
     } catch (err) {}
@@ -6579,6 +6591,37 @@ export default function App() {
           </div>
         </div>
       )}
+
+      {/* PERSISTENT STATUS BAR AT BOTTOM */}
+      <div style={{
+        position: 'fixed',
+        bottom: 0,
+        left: 0,
+        right: 0,
+        height: '36px',
+        backgroundColor: isLockedByOther ? '#FEE2E2' : '#ECFCCB',
+        borderTop: isLockedByOther ? '1px solid #FCA5A5' : '1px solid #BEF264',
+        display: 'flex',
+        alignItems: 'center',
+        padding: '0 24px',
+        fontSize: '13px',
+        zIndex: 9999,
+        color: isLockedByOther ? '#991B1B' : '#3F6212',
+        fontWeight: '500'
+      }}>
+        {!isLockLoaded ? (
+          "⏳ Connecting to cloud..."
+        ) : isLockedByOther ? (
+          <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <Lock size={14} /> <strong>READ ONLY:</strong> Locked by {lockData?.lockedByName} (Session expires if inactive)
+          </span>
+        ) : (
+          <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span style={{ color: '#65A30D' }}>●</span> <strong>EDITING:</strong> You have the lock. Changes are auto-saving to cloud.
+          </span>
+        )}
+      </div>
+
     </div>
   );
 }
