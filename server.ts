@@ -292,9 +292,14 @@ IMPORTANT:
         return status === 429 || status === 404 || msg.includes("429") || msg.includes("404") || msg.includes("not_found") || msg.includes("not found") || msg.includes("quota") || msg.includes("resource_exhausted") || msg.includes("rate limit") || msg.includes("unavailable") || msg.includes("503");
       };
 
-      for (const modelName of modelsToTry) {
+      for (const modelName of modelsToTry.slice(0, 3)) {
         let sources: Array<{ title: string; uri: string }> = [];
         try {
+          // Check if total backend budget is nearly expired (max 8s total)
+          if (Date.now() - startTime > 7500) {
+            thinkingLogs.push(`[${timestamp()}] [DEADLINE] Global backend execution budget reached; transitioning to instant synthesis.`);
+            break;
+          }
           thinkingLogs.push(`[${timestamp()}] [Gemini API] Querying ${modelName}...`);
           console.log(`[AI Diagnosis] Requesting generation with model: ${modelName}...`);
           
@@ -310,8 +315,8 @@ IMPORTANT:
                   temperature: 0.7,
                 }
               }),
-              8000,
-              `Model ${modelName} timed out after 8s`
+              4000,
+              `Model ${modelName} timed out after 4s`
             );
           } catch (genErr: any) {
             // Fallback without config if model doesn't support responseMimeType
@@ -320,8 +325,8 @@ IMPORTANT:
                 model: modelName,
                 contents: promptStr,
               }),
-              8000,
-              `Model ${modelName} timed out after 8s`
+              3500,
+              `Model ${modelName} timed out after 3.5s`
             );
           }
 

@@ -1833,6 +1833,11 @@ export default function App() {
     setThinkingStepIndex(0);
     setThinkingProgress(18);
 
+    // Absolute failsafe to ensure we never get stuck indefinitely
+    const failsafeTimer = setTimeout(() => {
+      setIsGeneratingAI(false);
+    }, 11000);
+
     const nowStr = () => new Date().toLocaleTimeString('en-US', { hour12: false });
     const initialLogs = [
       `[${nowStr()}] [Client Engine] Initiating diagnostic generation for: "${lead.company || 'Target Organization'}"...`,
@@ -1880,9 +1885,13 @@ export default function App() {
         .map(item => "Q: " + item.q + "\nA: " + item.a)
         .join('\n\n') || "No specific deviations recorded.";
 
+      const controller = new AbortController();
+      const fetchTimer = setTimeout(() => controller.abort(), 9500);
+
       const response = await fetch("/api/analyze-company", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        signal: controller.signal,
         body: JSON.stringify({
           company: lead.company,
           leadName: lead.name,
@@ -1896,6 +1905,7 @@ export default function App() {
           modelFallbacks: config.integration?.modelFallbacks || ['gemini-3.7-flash', 'gemini-3.6-flash', 'gemini-3.5-flash', 'gemini-3.5-flash-lite', 'gemini-pro-latest']
         })
       });
+      clearTimeout(fetchTimer);
 
       if (!response.ok) {
         const errJson = await response.json().catch(() => ({}));
@@ -1995,6 +2005,7 @@ export default function App() {
       clearTimeout(t1);
       clearTimeout(t2);
       clearInterval(crawlInterval);
+      clearTimeout(failsafeTimer);
 
       // Transition to Stage 4 (Formulating diagnostic roadmap) and zoom progress bar to 100%
       setThinkingStepIndex(3);

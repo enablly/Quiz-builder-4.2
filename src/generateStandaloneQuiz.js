@@ -583,7 +583,7 @@ export function generateStandaloneHtml(rawConfig, backendUrl = '') {
             '</label>';
 
           if (cq.type === 'select' || !cq.type) {
-            formFieldsHtml += '<select onchange="handleCustomAnswer(\'' + qId + '\', this.value)" style="width:100%; padding:10px 14px; border:1px solid #DADCE0; border-radius:4px; font-size:14px; background-color:white; color:' + (currentVal ? '#111827' : '#6B7280') + ';">' +
+            formFieldsHtml += '<select onchange="handleCustomAnswer(&quot;' + qId + '&quot;, this.value)" style="width:100%; padding:10px 14px; border:1px solid #DADCE0; border-radius:4px; font-size:14px; background-color:white; color:' + (currentVal ? '#111827' : '#6B7280') + ';">' +
               '<option value="" ' + (!currentVal ? 'selected' : '') + ' disabled>-- Select an option --</option>';
             (cq.options || []).forEach(function(opt) {
               formFieldsHtml += '<option value="' + escapeHtml(opt) + '" ' + (currentVal === opt ? 'selected' : '') + '>' + escapeHtml(opt) + '</option>';
@@ -594,21 +594,21 @@ export function generateStandaloneHtml(rawConfig, backendUrl = '') {
             (cq.options || []).forEach(function(opt) {
               const isChecked = currentVal === opt;
               formFieldsHtml += '<label style="display:flex; align-items:center; gap:8px; font-size:13px; color:#374151; background:' + (isChecked ? '#EFF6FF' : '#F9FAFB') + '; border:' + (isChecked ? '1.5px solid #3B82F6' : '1px solid #E5E7EB') + '; padding:8px 12px; border-radius:6px; cursor:pointer;">' +
-                '<input type="radio" name="custom_q_' + qId + '" value="' + escapeHtml(opt) + '" ' + (isChecked ? 'checked' : '') + ' onchange="handleCustomAnswer(\'' + qId + '\', this.value)" style="accent-color:#1D4ED8; cursor:pointer;" />' +
+                '<input type="radio" name="custom_q_' + qId + '" value="' + escapeHtml(opt) + '" ' + (isChecked ? 'checked' : '') + ' onchange="handleCustomAnswer(&quot;' + qId + '&quot;, this.value)" style="accent-color:#1D4ED8; cursor:pointer;" />' +
                 '<span>' + escapeHtml(opt) + '</span>' +
                 '</label>';
             });
             formFieldsHtml += '</div>';
           } else if (cq.type === 'text') {
-            formFieldsHtml += '<input type="text" placeholder="' + escapeHtml(cq.placeholder || 'Enter answer...') + '" value="' + escapeHtml(currentVal) + '" oninput="handleCustomAnswer(\'' + qId + '\', this.value)" />';
+            formFieldsHtml += '<input type="text" placeholder="' + escapeHtml(cq.placeholder || 'Enter answer...') + '" value="' + escapeHtml(currentVal) + '" oninput="handleCustomAnswer(&quot;' + qId + '&quot;, this.value)" />';
           } else if (cq.type === 'number') {
-            formFieldsHtml += '<input type="number" placeholder="' + escapeHtml(cq.placeholder || '0') + '" value="' + escapeHtml(currentVal) + '" oninput="handleCustomAnswer(\'' + qId + '\', this.value)" />';
+            formFieldsHtml += '<input type="number" placeholder="' + escapeHtml(cq.placeholder || '0') + '" value="' + escapeHtml(currentVal) + '" oninput="handleCustomAnswer(&quot;' + qId + '&quot;, this.value)" />';
           } else if (cq.type === 'rating') {
             const maxRating = cq.ratingMax || 5;
             formFieldsHtml += '<div style="display:flex; gap:8px; flex-wrap:wrap;">';
             for (let r = 1; r <= maxRating; r++) {
               const isSelected = Number(currentVal) === r;
-              formFieldsHtml += '<button type="button" onclick="handleCustomAnswer(\'' + qId + '\', ' + r + ')" style="width:38px; height:38px; border-radius:6px; border:' + (isSelected ? '2px solid #1D4ED8' : '1px solid #D1D5DB') + '; background:' + (isSelected ? '#1D4ED8' : 'white') + '; color:' + (isSelected ? 'white' : '#374151') + '; font-weight:700; font-size:14px; cursor:pointer; transition:all 0.15s ease;">' + r + '</button>';
+              formFieldsHtml += '<button type="button" onclick="handleCustomAnswer(&quot;' + qId + '&quot;, ' + r + ')" style="width:38px; height:38px; border-radius:6px; border:' + (isSelected ? '2px solid #1D4ED8' : '1px solid #D1D5DB') + '; background:' + (isSelected ? '#1D4ED8' : 'white') + '; color:' + (isSelected ? 'white' : '#374151') + '; font-weight:700; font-size:14px; cursor:pointer; transition:all 0.15s ease;">' + r + '</button>';
             }
             formFieldsHtml += '</div>';
           }
@@ -801,6 +801,17 @@ export function generateStandaloneHtml(rawConfig, backendUrl = '') {
         submitBtn.disabled = true;
       }
 
+      // Absolute fallback failsafe: Force result screen after 11 seconds no matter what
+      const failsafeTimer = setTimeout(() => {
+        if (typeof currentStep !== 'undefined' && currentStep <= (QUIZ_CONFIG.questions ? QUIZ_CONFIG.questions.length : 0)) {
+           if (!window.standaloneAiReport) {
+             window.standaloneAiReport = generateStaticAiReport(calculateScore(), lead.company, lead.name);
+           }
+           currentStep = (QUIZ_CONFIG.questions ? QUIZ_CONFIG.questions.length : 0) + 1;
+           render();
+        }
+      }, 11500);
+
       // Display multi-stage animated diagnosis engine loader before results
       const mainCard = document.getElementById('quiz-main-card');
       if (mainCard) {
@@ -935,11 +946,12 @@ export function generateStandaloneHtml(rawConfig, backendUrl = '') {
         }).catch(err => console.error("Webhook error:", err));
 
         // Fetch AI analysis if endpoint available
+        let aiCompleted = false;
         const fetchAiPromise = (async () => {
           try {
             addDiagnosticLog('[Client Engine] Querying model pipeline for ' + (lead.company || 'organization') + '...');
             const controller = new AbortController();
-            const fetchTimeout = setTimeout(() => controller.abort(), 12000);
+            const fetchTimeout = setTimeout(() => controller.abort(), 9000);
             const resp = await fetch("${apiBase}/api/analyze-company", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
@@ -966,6 +978,7 @@ export function generateStandaloneHtml(rawConfig, backendUrl = '') {
               if (data.html) {
                 window.standaloneAiReport = data.html;
                 addDiagnosticLog('[SUCCESS] Model synthesis verified. Assembling executive report...', '#4ADE80');
+                aiCompleted = true;
               }
               return;
             } else {
@@ -1006,27 +1019,18 @@ export function generateStandaloneHtml(rawConfig, backendUrl = '') {
 "Return ONLY the JSON object. Do not include markdown fences, backticks, or any other text.";
 
                 const rawClientModels = (QUIZ_CONFIG.integration && Array.isArray(QUIZ_CONFIG.integration.modelFallbacks) && QUIZ_CONFIG.integration.modelFallbacks.length > 0)
-                  ? QUIZ_CONFIG.integration.modelFallbacks.slice(0, 6)
+                  ? QUIZ_CONFIG.integration.modelFallbacks.slice(0, 3)
                   : [
                       "gemini-3.7-flash",
                       "gemini-3.6-flash",
-                      "gemini-3.5-flash",
-                      "gemini-3.5-flash-lite",
-                      "gemini-pro-latest"
+                      "gemini-3.5-flash"
                     ];
 
-                const rotateIdx = Math.floor(Date.now() / 1000) % rawClientModels.length;
-                const clientModels = [
-                  ...rawClientModels.slice(rotateIdx),
-                  ...rawClientModels.slice(0, rotateIdx)
-                ];
-
-                for (const mName of clientModels) {
+                for (const mName of rawClientModels) {
                   try {
                     addDiagnosticLog('[Direct API] Querying ' + mName + '...', '#94A3B8');
-                    // 1. Try with Google Search tool with 5s timeout
                     const ctl = new AbortController();
-                    const ctlTimer = setTimeout(() => ctl.abort(), 5000);
+                    const ctlTimer = setTimeout(() => ctl.abort(), 4000);
                     let resp = await fetch("https://generativelanguage.googleapis.com/v1beta/models/" + mName + ":generateContent?key=" + cKey, {
                       method: "POST",
                       headers: { "Content-Type": "application/json" },
@@ -1038,9 +1042,8 @@ export function generateStandaloneHtml(rawConfig, backendUrl = '') {
                     });
                     clearTimeout(ctlTimer);
                     if (!resp.ok) {
-                      // 2. Try without Search tool
                       const ctl2 = new AbortController();
-                      const ctlTimer2 = setTimeout(() => ctl2.abort(), 5000);
+                      const ctlTimer2 = setTimeout(() => ctl2.abort(), 3500);
                       resp = await fetch("https://generativelanguage.googleapis.com/v1beta/models/" + mName + ":generateContent?key=" + cKey, {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
@@ -1087,6 +1090,7 @@ export function generateStandaloneHtml(rawConfig, backendUrl = '') {
 
                         window.standaloneAiReport = generateStaticAiReport(calculateScore(), lead.company, lead.name, sec2, sec4);
                         addDiagnosticLog('[SUCCESS] Report compiled with ' + mName, '#4ADE80');
+                        aiCompleted = true;
                         break;
                       }
                     }
@@ -1098,26 +1102,32 @@ export function generateStandaloneHtml(rawConfig, backendUrl = '') {
                 console.error("Client-side AI fallback error:", clientErr);
               }
             } else {
-              console.warn("No Gemini API key in standalone config. Skipping AI and falling back to static template.");
+              console.warn("No Gemini API key in standalone config. Using certified benchmark diagnostic report.");
             }
           }
         })();
 
-        // Wait for fetch or maximum timer (10s max), then zoom to step 4 (100% complete)
+        // Hard cap at 10.0 seconds total before automatically activating the guaranteed benchmark fallback report
         const timerPromise = new Promise(res => setTimeout(res, 10000));
         Promise.race([fetchAiPromise, timerPromise]).finally(() => {
           clearTimeout(t1);
           clearTimeout(t2);
+          clearTimeout(failsafeTimer);
+          if (!window.standaloneAiReport) {
+            window.standaloneAiReport = generateStaticAiReport(calculateScore(), lead.company, lead.name);
+            addDiagnosticLog('[FALLBACK] 10s timeout reached — rendered benchmark spatial readiness report.', '#FBBF24');
+          }
           updateStepUI(3);
           addDiagnosticLog('[Stage 4/4] Finalizing and rendering diagnostic roadmap...', '#38BDF8');
           setTimeout(() => {
             currentStep++;
             render();
-          }, 600);
+          }, 400);
         });
         return;
       }
 
+      clearTimeout(failsafeTimer);
       await sendWebhook({
         action: 'submit',
         lead: lead,
@@ -1296,7 +1306,7 @@ export function generateStandaloneHtml(rawConfig, backendUrl = '') {
       } else {
         html += '<div style="margin-top: 12px; padding: 20px 24px; background:#F0FDF4; border:1px solid #BBF7D0; border-left: 5px solid #16A34A; border-radius:8px;">';
         html += '<h3 style="margin-top:0; color:#14532D; font-size:15px; font-weight:700;">🚀 Tailored Spatial Optimization & Implementation Plan</h3>';
-        html += '<p style="font-size:13.5px; color:#166534; line-height:1.6; margin-bottom:12px;"><strong>Actionable Spatial Interventions:</strong> High-impact spatial roadmap tailored to ' + compStr + '\'s readiness score and team parameters:</p>';
+        html += '<p style="font-size:13.5px; color:#166534; line-height:1.6; margin-bottom:12px;"><strong>Actionable Spatial Interventions:</strong> High-impact spatial roadmap tailored to ' + compStr + '&apos;s readiness score and team parameters:</p>';
         html += '<ul style="margin:0; padding-left:20px; font-size:13.5px; line-height:1.6; color:#14532D;">';
         html += '<li><strong>Deploy Acoustically Rated Focus Pods:</strong> Isolate intensive voice prompting workflows using certified STC 38+ pods.</li>';
         html += '<li><strong>Adopt Flexible Reconfigurable Zones:</strong> Implement modular partitions and agile furniture to support quick pivots between solo prompting and team syncs.</li>';
