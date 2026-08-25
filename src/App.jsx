@@ -2012,8 +2012,13 @@ export default function App() {
       setThinkingProgress(100);
       await new Promise(res => setTimeout(res, 700));
 
-      setAiReport(formatClientReportHtml(htmlOutput));
-      setIsGeneratingAI(false);
+      try {
+        setAiReport(formatClientReportHtml(htmlOutput));
+      } catch (fErr) {
+        console.error("Format error:", fErr);
+      } finally {
+        setIsGeneratingAI(false);
+      }
     }
   };
 

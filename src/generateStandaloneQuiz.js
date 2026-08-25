@@ -801,16 +801,21 @@ export function generateStandaloneHtml(rawConfig, backendUrl = '') {
         submitBtn.disabled = true;
       }
 
-      // Absolute fallback failsafe: Force result screen after 11 seconds no matter what
-      const failsafeTimer = setTimeout(() => {
-        if (typeof currentStep !== 'undefined' && currentStep <= (QUIZ_CONFIG.questions ? QUIZ_CONFIG.questions.length : 0)) {
-           if (!window.standaloneAiReport) {
-             window.standaloneAiReport = generateStaticAiReport(calculateScore(), lead.company, lead.name);
-           }
-           currentStep = (QUIZ_CONFIG.questions ? QUIZ_CONFIG.questions.length : 0) + 1;
-           render();
+      let transitionToResultsAttempted = false;
+
+      const forceTransitionToResults = () => {
+        if (transitionToResultsAttempted) return;
+        transitionToResultsAttempted = true;
+        
+        if (!window.standaloneAiReport) {
+          window.standaloneAiReport = generateStaticAiReport(calculateScore(), lead.company, lead.name);
         }
-      }, 11500);
+        currentStep = (QUIZ_CONFIG.questions ? QUIZ_CONFIG.questions.length : 0) + 1;
+        render();
+      };
+
+      // Absolute fallback failsafe: Force result screen after 11 seconds no matter what
+      const failsafeTimer = setTimeout(forceTransitionToResults, 11500);
 
       // Display multi-stage animated diagnosis engine loader before results
       const mainCard = document.getElementById('quiz-main-card');
@@ -1119,10 +1124,7 @@ export function generateStandaloneHtml(rawConfig, backendUrl = '') {
           }
           updateStepUI(3);
           addDiagnosticLog('[Stage 4/4] Finalizing and rendering diagnostic roadmap...', '#38BDF8');
-          setTimeout(() => {
-            currentStep++;
-            render();
-          }, 400);
+          setTimeout(forceTransitionToResults, 400);
         });
         return;
       }
